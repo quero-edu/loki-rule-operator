@@ -1,0 +1,27 @@
+# permissions for end users to view travellers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: traveller-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: operators
+    app.kubernetes.io/part-of: operators
+    app.kubernetes.io/managed-by: kustomize
+  name: traveller-viewer-role
+rules:
+- apiGroups:
+  - my.domain
+  resources:
+  - travellers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - my.domain
+  resources:
+  - travellers/status
+  verbs:
+  - get

@@ -1,0 +1,12 @@
+apiVersion: my.domain/v1alpha1
+kind: Traveller
+metadata:
+  labels:
+    app.kubernetes.io/name: traveller
+    app.kubernetes.io/instance: traveller-sample
+    app.kubernetes.io/part-of: operators
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: operators
+  name: traveller-sample
+spec:
+  # TODO(user): Add fields here

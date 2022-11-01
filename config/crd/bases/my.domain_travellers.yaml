@@ -35,6 +35,8 @@ spec:
           spec:
             description: TravellerSpec defines the desired state of Traveller
             properties:
+              bar:
+                type: string
               foo:
                 description: Foo is an example field of Traveller. Edit traveller_types.go
                   to remove/update

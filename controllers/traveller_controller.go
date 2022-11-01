@@ -19,10 +19,12 @@ package controllers
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 )
@@ -47,9 +49,30 @@ type TravellerReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := log.FromContext(ctx).WithValues("Traveller", req.NamespacedName)
 
-	// TODO(user): your logic here
+	log.Info("Reconciling Traveller")
+
+	// Fetch the Traveller instance
+	instance := &mydomainv1alpha1.Traveller{}
+	err := r.Get(context.TODO(), req.NamespacedName, instance)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return reconcile.Result{}, nil
+		}
+		return reconcile.Result{}, err
+	}
+
+	// Ensure ConfigMap exists
+	result, err := r.ensureConfigmap(req, instance, r.configMap(instance))
+
+	if result != nil {
+		log.Error(err, "ConfigMap not ready")
+		return *result, err
+	}
+
+	// (TODO) Sync Traveler with ConfigMap
+	// Set configmap.data[traveler.spec.foo]: traveler.spec.bar
 
 	return ctrl.Result{}, nil
 }

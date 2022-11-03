@@ -4,13 +4,11 @@ import (
 	"context"
 
 	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
-	"golang.org/x/exp/maps"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -52,7 +50,7 @@ func (r *TravellerReconciler) configMap(v *mydomainv1alpha1.Traveller) *corev1.C
 			Labels:    labels,
 		},
 		Data: map[string]string{
-			"backend-service.yaml": `test: true`,
+			"backend-asdasd.yaml": `test: false`,
 		},
 	}
 
@@ -60,8 +58,7 @@ func (r *TravellerReconciler) configMap(v *mydomainv1alpha1.Traveller) *corev1.C
 	return configMap
 }
 
-func (r *TravellerReconciler) updateConfigMap(configMap *corev1.ConfigMap, newConfigs map[string]string) error {
-	maps.Copy(configMap.Data, newConfigs)
-	err := r.Patch(context.TODO(), configMap, client.Merge)
+func (r *TravellerReconciler) syncConfigMap(configMap *corev1.ConfigMap) error {
+	err := r.Update(context.TODO(), configMap)
 	return err
 }

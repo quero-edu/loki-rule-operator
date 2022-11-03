@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -72,7 +73,9 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return *result, err
 	}
 
-	errOnUpdate := r.updateConfigMap(configMap, map[string]string{"backend-service-2.yaml": "test: false"})
+	fmt.Print(configMap)
+
+	errOnUpdate := r.syncConfigMap(configMap)
 
 	if errOnUpdate != nil {
 		return reconcile.Result{}, err

@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -63,12 +64,21 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return reconcile.Result{}, err
 	}
 
+	configMap := r.configMap(instance)
 	// Ensure ConfigMap exists
-	result, err := r.ensureConfigmap(req, instance, r.configMap(instance))
+	result, err := r.ensureConfigmap(req, instance, configMap)
 
 	if result != nil {
 		log.Error(err, "ConfigMap not ready")
 		return *result, err
+	}
+
+	fmt.Print(configMap)
+
+	errOnUpdate := r.syncConfigMap(configMap)
+
+	if errOnUpdate != nil {
+		return reconcile.Result{}, err
 	}
 
 	// (TODO) Sync Traveler with ConfigMap

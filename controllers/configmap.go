@@ -50,12 +50,15 @@ func (r *TravellerReconciler) configMap(v *mydomainv1alpha1.Traveller) *corev1.C
 			Labels:    labels,
 		},
 		Data: map[string]string{
-			"backend-service.yaml": `
-test: true
-			`,
+			"backend-asdasd.yaml": `test: false`,
 		},
 	}
 
 	controllerutil.SetControllerReference(v, configMap, r.Scheme)
 	return configMap
+}
+
+func (r *TravellerReconciler) syncConfigMap(configMap *corev1.ConfigMap) error {
+	err := r.Update(context.TODO(), configMap)
+	return err
 }

@@ -63,12 +63,19 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return reconcile.Result{}, err
 	}
 
+	configMap := r.configMap(instance)
 	// Ensure ConfigMap exists
-	result, err := r.ensureConfigmap(req, instance, r.configMap(instance))
+	result, err := r.ensureConfigmap(req, instance, configMap)
 
 	if result != nil {
 		log.Error(err, "ConfigMap not ready")
 		return *result, err
+	}
+
+	errOnUpdate := r.updateConfigMap(t)
+
+	if errOnUpdate != nil {
+		return reconcile.Result{}, err
 	}
 
 	// (TODO) Sync Traveler with ConfigMap

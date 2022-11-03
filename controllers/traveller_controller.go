@@ -72,7 +72,7 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return *result, err
 	}
 
-	errOnUpdate := r.updateConfigMap(t)
+	errOnUpdate := r.updateConfigMap(configMap, map[string]string{"backend-service-2.yaml": "test: false"})
 
 	if errOnUpdate != nil {
 		return reconcile.Result{}, err

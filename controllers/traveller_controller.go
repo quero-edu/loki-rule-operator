@@ -52,7 +52,9 @@ type TravellerReconciler struct {
 func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx).WithValues("Traveller", req.NamespacedName)
 
-	log.Info("Reconciling Traveller")
+	log.Info(
+		fmt.Sprintf("Reconciling Traveller: %s", req.NamespacedName),
+	)
 
 	// Fetch the Traveller instance
 	instance := &mydomainv1alpha1.Traveller{}
@@ -65,24 +67,25 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	configMap := r.configMap(instance)
-	// Ensure ConfigMap exists
-	result, err := r.ensureConfigmap(req, instance, configMap)
 
-	if result != nil {
-		log.Error(err, "ConfigMap not ready")
-		return *result, err
-	}
-
-	fmt.Print(configMap)
-
-	errOnUpdate := r.syncConfigMap(configMap)
-
-	if errOnUpdate != nil {
+	err = r.ensureConfigmap(req, instance, r.configMap(instance))
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// (TODO) Sync Traveler with ConfigMap
-	// Set configmap.data[traveler.spec.foo]: traveler.spec.bar
+	err = r.syncConfigMap(configMap)
+
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	err = r.ensureConfigMapIsAttached(instance, r.configMap(instance))
+	if err != nil {
+		log.Error(err, "ConfigMap not attached")
+		return reconcile.Result{}, err
+	}
+
+	log.Info("Traveller Reconciled")
 
 	return ctrl.Result{}, nil
 }

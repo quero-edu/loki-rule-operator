@@ -9,5 +9,11 @@ metadata:
     app.kubernetes.io/created-by: operators
   name: traveller-sample-2
 spec:
-  foo: 'test'
-  bar: 'test'
+  name: traveller-sample
+  selector:
+    matchLabels:
+      app: nginx
+  mountPath: /tmp
+  data:
+    test: |-
+      Update test

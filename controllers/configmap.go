@@ -17,7 +17,7 @@ import (
 )
 
 // ensureConfigmap ensures Configmap exists in a namespace.
-func (r *TravellerReconciler) ensureConfigmap(
+func (r *TravellerReconciler) ensureConfigmapExists(
 	request reconcile.Request,
 	instance *mydomainv1alpha1.Traveller,
 	configmap *corev1.ConfigMap,
@@ -37,7 +37,6 @@ func (r *TravellerReconciler) ensureConfigmap(
 	return nil
 }
 
-// configMap is a code for creating a ConfigMap
 func (r *TravellerReconciler) configMap(traveler *mydomainv1alpha1.Traveller) *corev1.ConfigMap {
 	labels := labels(traveler)
 
@@ -52,11 +51,6 @@ func (r *TravellerReconciler) configMap(traveler *mydomainv1alpha1.Traveller) *c
 
 	controllerutil.SetControllerReference(traveler, configMap, r.Scheme)
 	return configMap
-}
-
-func (r *TravellerReconciler) syncConfigMap(configMap *corev1.ConfigMap) error {
-	err := r.Update(context.TODO(), configMap)
-	return err
 }
 
 func (r *TravellerReconciler) ensureConfigMapIsAttached(

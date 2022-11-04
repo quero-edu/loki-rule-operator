@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,30 +60,28 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Fetch the Traveller instance
 	instance := &mydomainv1alpha1.Traveller{}
-	err := r.Get(context.TODO(), req.NamespacedName, instance)
+	err := r.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return reconcile.Result{}, nil
-		}
 		return reconcile.Result{}, err
 	}
 
 	configMap := r.configMap(instance)
 
-	err = r.ensureConfigmap(req, instance, r.configMap(instance))
+	err = r.ensureConfigmapExists(req, instance, configMap)
 	if err != nil {
+		log.Error(err, "Failed to ensure configmap exists")
 		return reconcile.Result{}, err
 	}
 
-	err = r.syncConfigMap(configMap)
-
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	err = r.ensureConfigMapIsAttached(instance, r.configMap(instance))
+	err = r.ensureConfigMapIsAttached(instance, configMap)
 	if err != nil {
 		log.Error(err, "ConfigMap not attached")
+		return reconcile.Result{}, err
+	}
+
+	err = r.Update(ctx, configMap)
+	if err != nil {
+		log.Error(err, "Failed to update configmap")
 		return reconcile.Result{}, err
 	}
 
@@ -95,18 +93,58 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			fmt.Println("Create event received")
 			return true
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			fmt.Println("Update event received")
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			fmt.Println("Delete event received")
-			return true
+			deletedInstance := e.Object.(*mydomainv1alpha1.Traveller)
+			r.deleteVolumesAndVolumeMounts(deletedInstance)
+			return false
 		},
 	}
+}
+
+func (r *TravellerReconciler) deleteVolumesAndVolumeMounts(v *mydomainv1alpha1.Traveller) error {
+	volumeName := generateVolumeName(v)
+
+	deployments, err := r.getTravellerTargetDeployments(v)
+	if err != nil {
+		return err
+	}
+
+	for _, deployment := range deployments.Items {
+		deployment.Spec.Template.Spec.Volumes = removeVolumeByName(deployment.Spec.Template.Spec.Volumes, volumeName)
+		deployment.Spec.Template.Spec.Containers[0] = removeVolumeMountByName(deployment.Spec.Template.Spec.Containers[0], volumeName)
+		err = r.Update(context.Background(), &deployment)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func removeVolumeByName(volumes []corev1.Volume, name string) []corev1.Volume {
+	for i, volume := range volumes {
+		if volume.Name == name {
+			return append(volumes[:i], volumes[i+1:]...)
+		}
+	}
+
+	return volumes
+}
+
+func removeVolumeMountByName(container corev1.Container, name string) corev1.Container {
+	for i, volumeMount := range container.VolumeMounts {
+		if volumeMount.Name == name {
+			container.VolumeMounts = append(container.VolumeMounts[:i], container.VolumeMounts[i+1:]...)
+		}
+	}
+
+	return container
 }
 
 // SetupWithManager sets up the controller with the Manager.

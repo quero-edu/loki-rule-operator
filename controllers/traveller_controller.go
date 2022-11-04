@@ -24,7 +24,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
@@ -87,9 +89,27 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
+func handleByEventType(r *TravellerReconciler) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			fmt.Println("Create event received")
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			fmt.Println("Update event received")
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			fmt.Println("Delete event received")
+			return true
+		},
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *TravellerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mydomainv1alpha1.Traveller{}).
+		WithEventFilter(handleByEventType(r)).
 		Complete(r)
 }

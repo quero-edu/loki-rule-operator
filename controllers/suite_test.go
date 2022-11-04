@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -78,3 +79,21 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+func (r *TravellerReconciler) TestReconcile(t *testing.T) {
+	instance := &mydomainv1alpha1.Traveller{}
+
+	expect := r.configMap(instance)
+	notexpect := r.configMap(instance)
+
+	fmt.Println("Good to go")
+	fmt.Print(expect)
+
+	if expect == notexpect {
+		t.Errorf("Output %q not equal to expected %q", expect, notexpect)
+	}
+	t.Errorf("Output %q not equal to expected %q", "a", "b")
+
+	RunSpecs(t, "Controller Suite")
+
+}

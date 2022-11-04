@@ -106,6 +106,14 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 	}
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *TravellerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&mydomainv1alpha1.Traveller{}).
+		WithEventFilter(handleByEventType(r)).
+		Complete(r)
+}
+
 func (r *TravellerReconciler) deleteVolumesAndVolumeMounts(v *mydomainv1alpha1.Traveller) error {
 	volumeName := generateVolumeName(v)
 
@@ -146,10 +154,3 @@ func removeVolumeMountByName(container corev1.Container, name string) corev1.Con
 	return container
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *TravellerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&mydomainv1alpha1.Traveller{}).
-		WithEventFilter(handleByEventType(r)).
-		Complete(r)
-}

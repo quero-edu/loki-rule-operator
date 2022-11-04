@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
-	"github.com/quero-edu/loki-rule-operator/controllers"
+	"github.com/quero-edu/loki-rule-operator/pkg/controllers"
 	//+kubebuilder:scaffold:imports
 )
 

@@ -37,34 +37,34 @@ func (r *TravellerReconciler) ensureConfigmapExists(
 	return nil
 }
 
-func (r *TravellerReconciler) configMap(traveler *mydomainv1alpha1.Traveller) *corev1.ConfigMap {
-	labels := labels(traveler)
+func (r *TravellerReconciler) configMap(traveller *mydomainv1alpha1.Traveller) *corev1.ConfigMap {
+	labels := labels(traveller)
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      traveler.Spec.Name,
-			Namespace: traveler.Namespace,
+			Name:      traveller.Spec.Name,
+			Namespace: traveller.Namespace,
 			Labels:    labels,
 		},
-		Data: traveler.Spec.Data,
+		Data: traveller.Spec.Data,
 	}
 
-	controllerutil.SetControllerReference(traveler, configMap, r.Scheme)
+	controllerutil.SetControllerReference(traveller, configMap, r.Scheme)
 	return configMap
 }
 
 func (r *TravellerReconciler) ensureConfigMapIsAttached(
-	traveler *mydomainv1alpha1.Traveller,
+	traveller *mydomainv1alpha1.Traveller,
 	configMap *corev1.ConfigMap,
 ) error {
-	deployments, err := r.getTravellerTargetDeployments(traveler)
+	deployments, err := r.getTravellerTargetDeployments(traveller)
 
 	if err != nil {
 		return err
 	}
 
 	if len(deployments.Items) == 0 {
-		return fmt.Errorf("no deployments found for traveller %s", traveler.Name)
+		return fmt.Errorf("no deployments found for traveller %s", traveller.Name)
 	}
 
 	volumeName := fmt.Sprintf("%s-volume", configMap.Name)
@@ -82,7 +82,7 @@ func (r *TravellerReconciler) ensureConfigMapIsAttached(
 
 	volumeMount := corev1.VolumeMount{
 		Name:      volumeName,
-		MountPath: traveler.Spec.MountPath,
+		MountPath: traveller.Spec.MountPath,
 	}
 
 	for _, deployment := range deployments.Items {
@@ -107,9 +107,9 @@ func (r *TravellerReconciler) ensureConfigMapIsAttached(
 }
 
 func (r *TravellerReconciler) getTravellerTargetDeployments(
-	traveler *mydomainv1alpha1.Traveller,
+	traveller *mydomainv1alpha1.Traveller,
 ) (*appsv1.DeploymentList, error) {
-	selector, err := metav1.LabelSelectorAsSelector(&traveler.Spec.Selector)
+	selector, err := metav1.LabelSelectorAsSelector(&traveller.Spec.Selector)
 	if err != nil {
 		return nil, err
 	}

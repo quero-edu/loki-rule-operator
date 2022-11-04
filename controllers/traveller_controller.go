@@ -99,7 +99,6 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			fmt.Println("Delete event received")
 			deletedInstance := e.Object.(*mydomainv1alpha1.Traveller)
 			r.deleteVolumesAndVolumeMounts(deletedInstance)
 			return false

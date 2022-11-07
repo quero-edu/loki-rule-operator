@@ -29,16 +29,25 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/go-kit/log/level"
 	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	"github.com/quero-edu/loki-rule-operator/internal/log"
 	"github.com/quero-edu/loki-rule-operator/pkg/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
+var logger = log.NewLogger("all")
+
 var (
 	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	setupLog = struct {
+		Info  func(keyvals ...interface{}) error
+		Error func(keyvals ...interface{}) error
+	}{
+		Info:  level.Info(logger).Log,
+		Error: level.Error(logger).Log,
+	}
 )
 
 func init() {
@@ -57,13 +66,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
-
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -92,6 +95,7 @@ func main() {
 	if err = (&controllers.TravellerReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Logger: log.NewLogger("all"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Traveller")
 		os.Exit(1)

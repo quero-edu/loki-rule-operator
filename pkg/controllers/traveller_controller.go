@@ -18,24 +18,26 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	"github.com/quero-edu/loki-rule-operator/pkg/k8sutils"
+	"github.com/quero-edu/loki-rule-operator/pkg/traveller"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 )
 
 // TravellerReconciler reconciles a Traveller object
 type TravellerReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Logger log.Logger
 }
 
 //+kubebuilder:rbac:groups=my.domain,resources=travellers,verbs=get;list;watch;create;update;patch;delete
@@ -52,11 +54,7 @@ type TravellerReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx).WithValues("Traveller", req.NamespacedName)
-
-	log.Info(
-		fmt.Sprintf("Reconciling Traveller: %s", req.NamespacedName),
-	)
+	level.Info(r.Logger).Log("msg", "Reconciling Traveller", "namespace", req.NamespacedName)
 
 	// Fetch the Traveller instance
 	instance := &mydomainv1alpha1.Traveller{}
@@ -65,27 +63,41 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return reconcile.Result{}, err
 	}
 
-	configMap := r.configMap(instance)
+	configMap := traveller.GenerateConfigMap(instance)
 
-	err = r.ensureConfigmapExists(req, instance, configMap)
+	controllerutil.SetControllerReference(instance, configMap, r.Scheme)
+
+	err = k8sutils.CreateOrUpdateConfigmap(
+		r.Client,
+		instance.Namespace,
+		configMap,
+		k8sutils.Options{Ctx: ctx, Logger: level.Debug(r.Logger)},
+	)
 	if err != nil {
-		log.Error(err, "Failed to ensure configmap exists")
+		level.Error(r.Logger).Log("err", err, "msg", "Failed to ensure configmap exists")
 		return reconcile.Result{}, err
 	}
 
-	err = r.ensureConfigMapIsAttached(instance, configMap)
+	err = k8sutils.MountConfigMapToDeployments(
+		r.Client,
+		instance.Spec.Selector,
+		instance.Namespace,
+		instance.Spec.MountPath,
+		configMap,
+		k8sutils.Options{Ctx: ctx, Logger: level.Debug(r.Logger)},
+	)
 	if err != nil {
-		log.Error(err, "ConfigMap not attached")
+		level.Error(r.Logger).Log("err", err, "msg", "ConfigMap not attached")
 		return reconcile.Result{}, err
 	}
 
 	err = r.Update(ctx, configMap)
 	if err != nil {
-		log.Error(err, "Failed to update configmap")
+		level.Error(r.Logger).Log("err", err, "msg", "Failed to update configmap")
 		return reconcile.Result{}, err
 	}
 
-	log.Info("Traveller Reconciled")
+	level.Info(r.Logger).Log("msg", "Traveller Reconciled")
 
 	return ctrl.Result{}, nil
 }
@@ -100,7 +112,14 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			deletedInstance := e.Object.(*mydomainv1alpha1.Traveller)
-			r.deleteVolumesAndVolumeMounts(deletedInstance)
+			configMap := traveller.GenerateConfigMap(deletedInstance)
+			k8sutils.UnmountConfigMapFromDeployments(
+				r.Client,
+				configMap,
+				deletedInstance.Spec.Selector,
+				deletedInstance.Namespace,
+				k8sutils.Options{Ctx: context.Background(), Logger: level.Debug(r.Logger)},
+			)
 			return false
 		},
 	}
@@ -113,44 +132,3 @@ func (r *TravellerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(handleByEventType(r)).
 		Complete(r)
 }
-
-func (r *TravellerReconciler) deleteVolumesAndVolumeMounts(v *mydomainv1alpha1.Traveller) error {
-	volumeName := generateVolumeName(v)
-
-	deployments, err := r.getTravellerTargetDeployments(v)
-	if err != nil {
-		return err
-	}
-
-	for _, deployment := range deployments.Items {
-		deployment.Spec.Template.Spec.Volumes = removeVolumeByName(deployment.Spec.Template.Spec.Volumes, volumeName)
-		deployment.Spec.Template.Spec.Containers[0] = removeVolumeMountByName(deployment.Spec.Template.Spec.Containers[0], volumeName)
-		err = r.Update(context.Background(), &deployment)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func removeVolumeByName(volumes []corev1.Volume, name string) []corev1.Volume {
-	for i, volume := range volumes {
-		if volume.Name == name {
-			return append(volumes[:i], volumes[i+1:]...)
-		}
-	}
-
-	return volumes
-}
-
-func removeVolumeMountByName(container corev1.Container, name string) corev1.Container {
-	for i, volumeMount := range container.VolumeMounts {
-		if volumeMount.Name == name {
-			container.VolumeMounts = append(container.VolumeMounts[:i], container.VolumeMounts[i+1:]...)
-		}
-	}
-
-	return container
-}
-

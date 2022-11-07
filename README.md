@@ -3,7 +3,7 @@ Mounts and manages CRD provided rules to Loki Ruler Instances.
 
 ## Description
 Loki Rule Operator utilizes Configmaps to mount rules provided by CRDs into loki ruler instances, the CRD must also contain selector and mountpath info.
-[loki-ruler-operator-diagram.png](./docs/alpha1v1/loki-rule-controller-diagram.excalidraw.png)
+![loki-ruler-operator-diagram.png](./docs/alpha1v1/loki-rule-controller-diagram.excalidraw.png)
 
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.

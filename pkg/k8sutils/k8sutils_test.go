@@ -1,7 +1,6 @@
 package k8sutils
 
 import (
-	// "context"
 	"context"
 	"fmt"
 	"testing"
@@ -45,7 +44,7 @@ func TestMain(m *testing.M) {
 
 	m.Run()
 
-	k8sClient.Delete(context.TODO(), namespace)
+	testEnv.Stop()
 }
 
 func TestCreateOrUpdateConfigMap(t *testing.T) {

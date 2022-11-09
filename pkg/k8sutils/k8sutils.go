@@ -31,6 +31,72 @@ func sanitizeOptions(args Options) Options {
 	return args
 }
 
+func getDeployments(cli client.Client, labelSelector metav1.LabelSelector, args Options) (*appsv1.DeploymentList, error) {
+	ctx, logger := args.Ctx, args.Logger
+
+	selector, err := metav1.LabelSelectorAsSelector(&labelSelector)
+	if err != nil {
+		logger.Log("msg", "failed to convert label selector to selector", "err", err)
+		return nil, err
+	}
+
+	deployments := &appsv1.DeploymentList{}
+
+	err = cli.List(ctx, deployments, &client.ListOptions{
+		LabelSelector: selector,
+		Namespace:     "default",
+	})
+
+	if err != nil {
+		logger.Log("msg", "failed to list deployments", "err", err)
+		return nil, err
+	}
+
+	return deployments, nil
+}
+
+func genVolumeNameFromConfigmap(configmap *corev1.ConfigMap) string {
+	return fmt.Sprintf("%s-volume", configmap.Name)
+}
+
+func volumeExists(volumeName string, deployment appsv1.Deployment) bool {
+	for _, v := range deployment.Spec.Template.Spec.Volumes {
+		if v.Name == volumeName {
+			return true
+		}
+	}
+	return false
+}
+
+func volumeIsMounted(volumeName string, deployment appsv1.Deployment) bool {
+	for _, vm := range deployment.Spec.Template.Spec.Containers[0].VolumeMounts {
+		if vm.Name == volumeName {
+			return true
+		}
+	}
+	return false
+}
+
+func removeVolumeByName(volumes []corev1.Volume, name string) []corev1.Volume {
+	for i, volume := range volumes {
+		if volume.Name == name {
+			return append(volumes[:i], volumes[i+1:]...)
+		}
+	}
+
+	return volumes
+}
+
+func removeVolumeMountByName(volumeMounts []corev1.VolumeMount, name string) []corev1.VolumeMount {
+	for i, volumeMount := range volumeMounts {
+		if volumeMount.Name == name {
+			volumeMounts = append(volumeMounts[:i], volumeMounts[i+1:]...)
+		}
+	}
+
+	return volumeMounts
+}
+
 // CreateOrUpdateConfigmap creates or updates a Configmap in a specific namespace.
 func CreateOrUpdateConfigmap(
 	cli client.Client,
@@ -165,70 +231,4 @@ func UnmountConfigMapFromDeployments(
 	}
 
 	return nil
-}
-
-func getDeployments(cli client.Client, labelSelector metav1.LabelSelector, args Options) (*appsv1.DeploymentList, error) {
-	ctx, logger := args.Ctx, args.Logger
-
-	selector, err := metav1.LabelSelectorAsSelector(&labelSelector)
-	if err != nil {
-		logger.Log("msg", "failed to convert label selector to selector", "err", err)
-		return nil, err
-	}
-
-	deployments := &appsv1.DeploymentList{}
-
-	err = cli.List(ctx, deployments, &client.ListOptions{
-		LabelSelector: selector,
-		Namespace:     "default",
-	})
-
-	if err != nil {
-		logger.Log("msg", "failed to list deployments", "err", err)
-		return nil, err
-	}
-
-	return deployments, nil
-}
-
-func genVolumeNameFromConfigmap(configmap *corev1.ConfigMap) string {
-	return fmt.Sprintf("%s-volume", configmap.Name)
-}
-
-func volumeExists(volumeName string, deployment appsv1.Deployment) bool {
-	for _, v := range deployment.Spec.Template.Spec.Volumes {
-		if v.Name == volumeName {
-			return true
-		}
-	}
-	return false
-}
-
-func volumeIsMounted(volumeName string, deployment appsv1.Deployment) bool {
-	for _, vm := range deployment.Spec.Template.Spec.Containers[0].VolumeMounts {
-		if vm.Name == volumeName {
-			return true
-		}
-	}
-	return false
-}
-
-func removeVolumeByName(volumes []corev1.Volume, name string) []corev1.Volume {
-	for i, volume := range volumes {
-		if volume.Name == name {
-			return append(volumes[:i], volumes[i+1:]...)
-		}
-	}
-
-	return volumes
-}
-
-func removeVolumeMountByName(volumeMounts []corev1.VolumeMount, name string) []corev1.VolumeMount {
-	for i, volumeMount := range volumeMounts {
-		if volumeMount.Name == name {
-			volumeMounts = append(volumeMounts[:i], volumeMounts[i+1:]...)
-		}
-	}
-
-	return volumeMounts
 }

@@ -91,12 +91,6 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return reconcile.Result{}, err
 	}
 
-	err = r.Update(ctx, configMap)
-	if err != nil {
-		level.Error(r.Logger).Log("err", err, "msg", "Failed to update configmap")
-		return reconcile.Result{}, err
-	}
-
 	level.Info(r.Logger).Log("msg", "Traveller Reconciled")
 
 	return ctrl.Result{}, nil
@@ -113,13 +107,18 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			deletedInstance := e.Object.(*mydomainv1alpha1.Traveller)
 			configMap := traveller.GenerateConfigMap(deletedInstance)
-			k8sutils.UnmountConfigMapFromDeployments(
+			err := k8sutils.UnmountConfigMapFromDeployments(
 				r.Client,
 				configMap,
 				deletedInstance.Spec.Selector,
 				deletedInstance.Namespace,
 				k8sutils.Options{Ctx: context.Background(), Logger: level.Debug(r.Logger)},
 			)
+
+			if err != nil {
+				level.Error(r.Logger).Log("err", err, "msg", "Failed to unmount configmap from deployments")
+			}
+
 			return false
 		},
 	}

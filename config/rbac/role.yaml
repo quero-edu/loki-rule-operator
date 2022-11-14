@@ -6,9 +6,9 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
-  - travellers
+  - lokiRules
   verbs:
   - create
   - delete
@@ -18,15 +18,15 @@ rules:
   - update
   - watch
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
-  - travellers/finalizers
+  - lokiRules/finalizers
   verbs:
   - update
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
-  - travellers/status
+  - lokiRules/status
   verbs:
   - get
   - patch

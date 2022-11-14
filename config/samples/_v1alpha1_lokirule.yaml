@@ -1,15 +1,15 @@
-apiVersion: my.domain/v1alpha1
-kind: Traveller
+apiVersion: quero.com/v1alpha1
+kind: LokiRule
 metadata:
   labels:
-    app.kubernetes.io/name: traveller-2
-    app.kubernetes.io/instance: traveller-sample
+    app.kubernetes.io/name: lokirule-2
+    app.kubernetes.io/instance: lokirule-sample
     app.kubernetes.io/part-of: operators
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: operators
-  name: traveller-sample-2
+  name: lokirule-sample-2
 spec:
-  name: traveller-sample
+  name: lokirule-sample
   selector:
     matchLabels:
       app: nginx

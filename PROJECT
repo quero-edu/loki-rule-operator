@@ -1,4 +1,4 @@
-domain: my.domain
+domain: quero.com
 layout:
 - go.kubebuilder.io/v3
 plugins:
@@ -11,8 +11,8 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: my.domain
-  kind: Traveller
+  domain: quero.com
+  kind: LokiRule
   path: github.com/quero-edu/loki-rule-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

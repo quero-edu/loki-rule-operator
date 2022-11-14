@@ -1,27 +1,31 @@
-# permissions for end users to view travellers.
+# permissions for end users to edit lokirules.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: traveller-viewer-role
+    app.kubernetes.io/instance: lokirule-editor-role
     app.kubernetes.io/component: rbac
     app.kubernetes.io/created-by: operators
     app.kubernetes.io/part-of: operators
     app.kubernetes.io/managed-by: kustomize
-  name: traveller-viewer-role
+  name: lokirule-editor-role
 rules:
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
-  - travellers
+  - lokirules
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
-  - travellers/status
+  - lokirules/status
   verbs:
   - get

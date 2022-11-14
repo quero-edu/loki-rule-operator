@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
-  name: travellers.my.domain
+  name: lokirules.quero.com
 spec:
-  group: my.domain
+  group: quero.com
   names:
-    kind: Traveller
-    listKind: TravellerList
-    plural: travellers
-    singular: traveller
+    kind: LokiRule
+    listKind: LokiRuleList
+    plural: lokirules
+    singular: lokirule
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Traveller is the Schema for the travellers API
+        description: LokiRule is the Schema for the lokiRules API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: TravellerSpec defines the desired state of Traveller
+            description: LokiRuleSpec defines the desired state of LokiRule
             properties:
               data:
                 additionalProperties:
@@ -42,8 +42,6 @@ spec:
               mountPath:
                 type: string
               name:
-                description: Foo is an example field of Traveller. Edit traveller_types.go
-                  to remove/update
                 type: string
               selector:
                 description: A label selector is a label query over a set of resources.
@@ -95,7 +93,7 @@ spec:
                 x-kubernetes-map-type: atomic
             type: object
           status:
-            description: TravellerStatus defines the observed state of Traveller
+            description: LokiRuleStatus defines the observed state of LokiRule
             type: object
         type: object
     served: true

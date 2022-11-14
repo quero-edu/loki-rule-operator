@@ -21,9 +21,9 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	"github.com/quero-edu/loki-rule-operator/pkg/k8sutils"
-	"github.com/quero-edu/loki-rule-operator/pkg/traveller"
+	"github.com/quero-edu/loki-rule-operator/pkg/lokirule"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,37 +33,37 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// TravellerReconciler reconciles a Traveller object
-type TravellerReconciler struct {
+// LokiRuleReconciler reconciles a LokiRule object
+type LokiRuleReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Logger log.Logger
 }
 
-//+kubebuilder:rbac:groups=my.domain,resources=travellers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=my.domain,resources=travellers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=my.domain,resources=travellers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=quero.com,resources=lokiRules,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=quero.com,resources=lokiRules/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=quero.com,resources=lokiRules/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Traveller object against the actual cluster state, and then
+// the LokiRule object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
-func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	level.Info(r.Logger).Log("msg", "Reconciling Traveller", "namespace", req.NamespacedName)
+func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	level.Info(r.Logger).Log("msg", "Reconciling LokiRule", "namespace", req.NamespacedName)
 
-	// Fetch the Traveller instance
-	instance := &mydomainv1alpha1.Traveller{}
+	// Fetch the LokiRule instance
+	instance := &querocomv1alpha1.LokiRule{}
 	err := r.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	configMap := traveller.GenerateConfigMap(instance)
+	configMap := lokirule.GenerateConfigMap(instance)
 
 	controllerutil.SetControllerReference(instance, configMap, r.Scheme)
 
@@ -91,12 +91,12 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return reconcile.Result{}, err
 	}
 
-	level.Info(r.Logger).Log("msg", "Traveller Reconciled")
+	level.Info(r.Logger).Log("msg", "LokiRule Reconciled")
 
 	return ctrl.Result{}, nil
 }
 
-func handleByEventType(r *TravellerReconciler) predicate.Predicate {
+func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			return true
@@ -105,8 +105,8 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			deletedInstance := e.Object.(*mydomainv1alpha1.Traveller)
-			configMap := traveller.GenerateConfigMap(deletedInstance)
+			deletedInstance := e.Object.(*querocomv1alpha1.LokiRule)
+			configMap := lokirule.GenerateConfigMap(deletedInstance)
 			err := k8sutils.UnmountConfigMapFromDeployments(
 				r.Client,
 				configMap,
@@ -125,9 +125,9 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TravellerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *LokiRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&mydomainv1alpha1.Traveller{}).
+		For(&querocomv1alpha1.LokiRule{}).
 		WithEventFilter(handleByEventType(r)).
 		Complete(r)
 }

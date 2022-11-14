@@ -15,7 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	"github.com/quero-edu/loki-rule-operator/internal/log"
 	//+kubebuilder:scaffold:imports
 )
@@ -23,7 +23,7 @@ import (
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
-var travellerReconciler *TravellerReconciler
+var lokiRuleReconciler *LokiRuleReconciler
 
 const NAMESPACE = "default"
 
@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	err = mydomainv1alpha1.AddToScheme(scheme.Scheme)
+	err = querocomv1alpha1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 
 	k8sClient.Create(context.TODO(), namespace)
 
-	travellerReconciler = &TravellerReconciler{
+	lokiRuleReconciler = &LokiRuleReconciler{
 		Client: k8sClient,
 		Scheme: scheme.Scheme,
 		Logger: log.NewLogger("all"),
@@ -69,20 +69,20 @@ func TestMain(m *testing.M) {
 }
 
 func TestReconcile(t *testing.T) {
-	const configMapName = "test-traveller-config"
-	const deploymentName = "test-traveller-deployment"
-	const mountPath = "/etc/traveller"
+	const configMapName = "test-lokirule-config"
+	const deploymentName = "test-lokirule-deployment"
+	const mountPath = "/etc/lokiRule"
 
 	labels := map[string]string{
 		"app": "test",
 	}
 
-	traveller := &mydomainv1alpha1.Traveller{
+	lokiRule := &querocomv1alpha1.LokiRule{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-traveller",
+			Name:      "test-lokirule",
 			Namespace: NAMESPACE,
 		},
-		Spec: mydomainv1alpha1.TravellerSpec{
+		Spec: querocomv1alpha1.LokiRuleSpec{
 			Name: configMapName,
 			Selector: metav1.LabelSelector{
 				MatchLabels: labels,
@@ -126,16 +126,16 @@ func TestReconcile(t *testing.T) {
 		return
 	}
 
-	err = k8sClient.Create(context.TODO(), traveller)
+	err = k8sClient.Create(context.TODO(), lokiRule)
 	if err != nil {
-		t.Errorf("TestReconcile() Error creating traveller: %v", err)
+		t.Errorf("TestReconcile() Error creating lokiRule: %v", err)
 		return
 	}
 
-	travellerReconciler.Reconcile(context.TODO(), ctrl.Request{
+	lokiRuleReconciler.Reconcile(context.TODO(), ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Name:      traveller.Name,
-			Namespace: traveller.Namespace,
+			Name:      lokiRule.Name,
+			Namespace: lokiRule.Namespace,
 		},
 	})
 
@@ -151,7 +151,7 @@ func TestReconcile(t *testing.T) {
 	}
 
 	if configMap.Data["test"] != "test" {
-		t.Errorf("TestReconcile() Assertion failed: ConfigMap data is not equal to traveller data")
+		t.Errorf("TestReconcile() Assertion failed: ConfigMap data is not equal to lokiRule data")
 		return
 	}
 
@@ -188,7 +188,7 @@ func TestReconcile(t *testing.T) {
 	}
 
 	if deployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath != mountPath {
-		t.Errorf("TestReconcile() Assertion failed: Deployment volume mount path is not equal to traveller mount path")
+		t.Errorf("TestReconcile() Assertion failed: Deployment volume mount path is not equal to lokiRule mount path")
 		return
 	}
 }

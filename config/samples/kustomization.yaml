@@ -1,4 +1,4 @@
 ## Append samples you want in your CSV to this file as resources ##
 resources:
-- _v1alpha1_traveller.yaml
+- _v1alpha1_lokirule.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

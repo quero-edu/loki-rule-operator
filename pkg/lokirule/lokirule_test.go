@@ -1,19 +1,19 @@
-package traveller
+package lokirule
 
 import (
 	"testing"
 
-	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGenerateConfigMap(t *testing.T) {
-	travellerInstance := &mydomainv1alpha1.Traveller{
+	lokiRuleInstance := &querocomv1alpha1.LokiRule{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-traveller",
+			Name:      "test-lokirule",
 			Namespace: "test-namespace",
 		},
-		Spec: mydomainv1alpha1.TravellerSpec{
+		Spec: querocomv1alpha1.LokiRuleSpec{
 			Name: "test",
 			Data: map[string]string{
 				"foo": "bar",
@@ -21,7 +21,7 @@ func TestGenerateConfigMap(t *testing.T) {
 		},
 	}
 
-	configMap := GenerateConfigMap(travellerInstance)
+	configMap := GenerateConfigMap(lokiRuleInstance)
 
 	if configMap.Name != "test" {
 		t.Errorf("Expected configMap name to be 'test', got %s", configMap.Name)
@@ -35,10 +35,10 @@ func TestGenerateConfigMap(t *testing.T) {
 		t.Errorf("Expected configMap data to be 'bar', got %s", configMap.Data["foo"])
 	}
 
-	if configMap.Labels["visitorssite_cr"] != travellerInstance.Name {
+	if configMap.Labels["visitorssite_cr"] != lokiRuleInstance.Name {
 		t.Errorf(
 			"Expected configMap label visitorssite_cr to be %s, got %s",
-			travellerInstance.Name,
+			lokiRuleInstance.Name,
 			configMap.Labels["visitorssite_cr"],
 		)
 	}

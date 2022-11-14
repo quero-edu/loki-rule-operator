@@ -11,8 +11,8 @@ spec:
   names:
     kind: LokiRule
     listKind: LokiRuleList
-    plural: lokiRules
-    singular: lokiRule
+    plural: lokirules
+    singular: lokirule
   scope: Namespaced
   versions:
   - name: v1alpha1
@@ -42,8 +42,6 @@ spec:
               mountPath:
                 type: string
               name:
-                description: Foo is an example field of LokiRule. Edit lokiRule_types.go
-                  to remove/update
                 type: string
               selector:
                 description: A label selector is a label query over a set of resources.

@@ -8,7 +8,7 @@ rules:
 - apiGroups:
   - quero.com
   resources:
-  - travellers
+  - lokiRules
   verbs:
   - create
   - delete
@@ -20,13 +20,13 @@ rules:
 - apiGroups:
   - quero.com
   resources:
-  - travellers/finalizers
+  - lokiRules/finalizers
   verbs:
   - update
 - apiGroups:
   - quero.com
   resources:
-  - travellers/status
+  - lokiRules/status
   verbs:
   - get
   - patch

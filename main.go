@@ -92,12 +92,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.TravellerReconciler{
+	if err = (&controllers.LokiRuleReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Logger: log.NewLogger("all"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Traveller")
+		setupLog.Error(err, "unable to create controller", "controller", "LokiRule")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

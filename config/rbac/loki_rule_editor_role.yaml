@@ -1,20 +1,20 @@
-# permissions for end users to edit travellers.
+# permissions for end users to edit lokiRules.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: traveller-editor-role
+    app.kubernetes.io/instance: lokiRule-editor-role
     app.kubernetes.io/component: rbac
     app.kubernetes.io/created-by: operators
     app.kubernetes.io/part-of: operators
     app.kubernetes.io/managed-by: kustomize
-  name: traveller-editor-role
+  name: lokiRule-editor-role
 rules:
 - apiGroups:
   - quero.com
   resources:
-  - travellers
+  - lokiRules
   verbs:
   - create
   - delete
@@ -26,6 +26,6 @@ rules:
 - apiGroups:
   - quero.com
   resources:
-  - travellers/status
+  - lokiRules/status
   verbs:
   - get

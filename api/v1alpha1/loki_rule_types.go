@@ -23,20 +23,19 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// TravellerSpec defines the desired state of Traveller
-type TravellerSpec struct {
+// LokiRuleSpec defines the desired state of LokiRule
+type LokiRuleSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Traveller. Edit traveller_types.go to remove/update
 	Name      string               `json:"name,omitempty" yaml:"name"`
 	Selector  metav1.LabelSelector `json:"selector,omitempty" yaml:"selector"`
 	MountPath string               `json:"mountPath,omitempty" yaml:"mountPath"`
 	Data      map[string]string    `json:"data,omitempty" yaml:"data"`
 }
 
-// TravellerStatus defines the observed state of Traveller
-type TravellerStatus struct {
+// LokiRuleStatus defines the observed state of LokiRule
+type LokiRuleStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -44,24 +43,24 @@ type TravellerStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Traveller is the Schema for the travellers API
-type Traveller struct {
+// LokiRule is the Schema for the lokiRules API
+type LokiRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TravellerSpec   `json:"spec,omitempty"`
-	Status TravellerStatus `json:"status,omitempty"`
+	Spec   LokiRuleSpec   `json:"spec,omitempty"`
+	Status LokiRuleStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// TravellerList contains a list of Traveller
-type TravellerList struct {
+// LokiRuleList contains a list of LokiRule
+type LokiRuleList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Traveller `json:"items"`
+	Items           []LokiRule `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Traveller{}, &TravellerList{})
+	SchemeBuilder.Register(&LokiRule{}, &LokiRuleList{})
 }

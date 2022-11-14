@@ -2,6 +2,8 @@ package k8sutils
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 
 	"github.com/go-kit/log"
@@ -57,6 +59,19 @@ func getDeployments(cli client.Client, labelSelector metav1.LabelSelector, args 
 
 func genVolumeNameFromConfigmap(configmap *corev1.ConfigMap) string {
 	return fmt.Sprintf("%s-volume", configmap.Name)
+}
+
+func genAnnotationNameFromConfigmap(configmap *corev1.ConfigMap) string {
+	return fmt.Sprintf("checksum/config-%s", configmap.Name)
+}
+
+func hashConfigmapData(configmap *corev1.ConfigMap) (string, error) {
+	data, err := json.Marshal(configmap.Data)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }
 
 func volumeExists(volumeName string, deployment appsv1.Deployment) bool {
@@ -166,18 +181,28 @@ func MountConfigMapToDeployments(
 		MountPath: mountPath,
 	}
 
+	configMapAnnotationName := genAnnotationNameFromConfigmap(configmap)
+	configMapHash, err := hashConfigmapData(configmap)
+	if err != nil {
+		log.Log("msg", "failed to hash configmap data", "err", err)
+		return err
+	}
+
 	for _, deployment := range deployments.Items {
-		if volumeExists(volume.Name, deployment) && volumeIsMounted(volume.Name, deployment) {
-			log.Log("msg", "volume already exists in deployment", "deployment", deployment.Name)
-			continue
+		if deployment.Spec.Template.Annotations == nil {
+			deployment.Spec.Template.Annotations = make(map[string]string)
 		}
 
-		deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, volume)
+		deployment.Spec.Template.Annotations[configMapAnnotationName] = configMapHash
 
-		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-			volumeMount,
-		)
+		if !volumeExists(volume.Name, deployment) && !volumeIsMounted(volume.Name, deployment) {
+			deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, volume)
+
+			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+				deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+				volumeMount,
+			)
+		}
 
 		err = cli.Patch(ctx, &deployment, client.Merge)
 		if err != nil {
@@ -189,6 +214,8 @@ func MountConfigMapToDeployments(
 	return nil
 }
 
+// DetachConfigmapFromDeployments detaches a Configmap from a Deployment if a volume with the matching generated
+// name exists in the Deployment.
 func UnmountConfigMapFromDeployments(
 	cli client.Client,
 	configmap *corev1.ConfigMap,
@@ -210,6 +237,7 @@ func UnmountConfigMapFromDeployments(
 	}
 
 	volumeName := genVolumeNameFromConfigmap(configmap)
+	configmapAnnotationName := genAnnotationNameFromConfigmap(configmap)
 
 	for _, deployment := range deployments.Items {
 		if !volumeExists(volumeName, deployment) && !volumeIsMounted(volumeName, deployment) {
@@ -222,6 +250,8 @@ func UnmountConfigMapFromDeployments(
 			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
 			volumeName,
 		)
+
+		delete(deployment.Spec.Template.Annotations, configmapAnnotationName)
 
 		err = cli.Update(ctx, &deployment)
 		if err != nil {

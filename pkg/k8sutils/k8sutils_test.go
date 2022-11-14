@@ -114,40 +114,12 @@ func TestCreateOrUpdateConfigMap(t *testing.T) {
 }
 
 func TestMountConfigMapToDeployments(t *testing.T) {
-	labels := map[string]string{
-		"app": "test",
-	}
-
 	deploymentName := "test-deployment"
-
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: NAMESPACE,
-			Labels:    labels,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "test",
-							Image: "test",
-						},
-					},
-				},
-			},
-		},
+	labels := map[string]string{
+		"test": "mountCfgMap",
 	}
 
-	err := k8sClient.Create(context.TODO(), deployment)
-
+	_, err := createSimpleDeployment(deploymentName, labels)
 	if err != nil {
 		t.Errorf("MountConfigMapToDeployments() setup error = %v", err)
 		return
@@ -163,6 +135,7 @@ func TestMountConfigMapToDeployments(t *testing.T) {
 			Name:      "test-configmap",
 			Namespace: NAMESPACE,
 		},
+		Data: map[string]string{"test": "test"},
 	}
 
 	err = MountConfigMapToDeployments(
@@ -180,7 +153,7 @@ func TestMountConfigMapToDeployments(t *testing.T) {
 	}
 
 	// Asserts that the configmap was mounted to the deployment
-	deployment = &appsv1.Deployment{}
+	deployment := &appsv1.Deployment{}
 
 	err = k8sClient.Get(context.TODO(), types.NamespacedName{
 		Name:      deploymentName,
@@ -200,11 +173,24 @@ func TestMountConfigMapToDeployments(t *testing.T) {
 		)
 		return
 	}
+
+	// "{\"test\":\"test\"}" | sha256sum
+	configmapDataHash := "3e80b3778b3b03766e7be993131c0af2ad05630c5d96fb7fa132d05b77336e04"
+	configmapHashAnnotation := fmt.Sprintf("checksum/config-%s", configMap.Name)
+
+	if deployment.Spec.Template.Annotations[configmapHashAnnotation] != configmapDataHash {
+		t.Errorf(
+			"AnnotateDeploymentWithConfigmapHash() error = Deployment was not annotated with the configmap hash. Expected annotation to be '%s', got '%s'",
+			configmapDataHash,
+			deployment.Spec.Template.Annotations,
+		)
+		return
+	}
 }
 
 func TestUnmountConfigMapFromDeployments(t *testing.T) {
 	labels := map[string]string{
-		"app": "test",
+		"app": "unmountCfgMap",
 	}
 
 	labelSelector := metav1.LabelSelector{
@@ -217,53 +203,41 @@ func TestUnmountConfigMapFromDeployments(t *testing.T) {
 			Namespace: NAMESPACE,
 		},
 	}
-	deploymentName := "test-deployment-with-volume"
 
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: NAMESPACE,
-			Labels:    labels,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: corev1.PodSpec{
-					Volumes: []corev1.Volume{
-						{
-							Name: fmt.Sprintf("%s-volume", configMap.Name),
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: configMap.Name,
-									},
-								},
-							},
-						},
-					},
-					Containers: []corev1.Container{
-						{
-							Name:  "test",
-							Image: "test",
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      fmt.Sprintf("%s-volume", configMap.Name),
-									MountPath: "/etc/config",
-								},
-							},
-						},
+	deploymentName := "test-deployment-with-volumes"
+
+	deployment, err := createSimpleDeployment(deploymentName, labels)
+	if err != nil {
+		t.Errorf("UnmountConfigMapFromDeployments() setup error = %v", err)
+		return
+	}
+
+	deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+		{
+			Name: fmt.Sprintf("%s-volume", configMap.Name),
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: configMap.Name,
 					},
 				},
 			},
 		},
 	}
 
-	err := k8sClient.Create(context.TODO(), deployment)
+	deployment.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+		{
+			Name:      fmt.Sprintf("%s-volume", configMap.Name),
+			MountPath: "/etc/config",
+		},
+	}
+
+	err = k8sClient.Update(context.TODO(), deployment)
+
+	if err != nil {
+		t.Errorf("UnmountConfigMapFromDeployments() setup error = %v", err)
+		return
+	}
 
 	if err != nil {
 		t.Errorf("UnmountConfigMapFromDeployments() setup error = %v", err)
@@ -301,4 +275,48 @@ func TestUnmountConfigMapFromDeployments(t *testing.T) {
 		return
 	}
 
+	configMapHashAnnotation := fmt.Sprintf("checksum/config-%s", configMap.Name)
+	if deployment.Annotations[configMapHashAnnotation] != "" {
+		t.Errorf(
+			"UnmountConfigMapFromDeployments() error = Deployment was not unannotated with the configmap hash. Expected annotation to be empty, got '%s'",
+			deployment.Annotations[configMapHashAnnotation],
+		)
+		return
+	}
+}
+
+func createSimpleDeployment(name string, labels map[string]string) (*appsv1.Deployment, error) {
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: NAMESPACE,
+			Labels:    labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "test",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := k8sClient.Create(context.TODO(), deployment)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return deployment, nil
 }

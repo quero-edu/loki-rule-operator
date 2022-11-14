@@ -12,7 +12,7 @@ metadata:
   name: traveller-viewer-role
 rules:
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
   - travellers
   verbs:
@@ -20,7 +20,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
   - travellers/status
   verbs:

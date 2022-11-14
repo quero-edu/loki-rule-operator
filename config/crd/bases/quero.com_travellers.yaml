@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
-  name: travellers.my.domain
+  name: travellers.quero.com
 spec:
-  group: my.domain
+  group: quero.com
   names:
     kind: Traveller
     listKind: TravellerList

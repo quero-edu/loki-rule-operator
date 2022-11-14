@@ -6,7 +6,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
   - travellers
   verbs:
@@ -18,13 +18,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
   - travellers/finalizers
   verbs:
   - update
 - apiGroups:
-  - my.domain
+  - quero.com
   resources:
   - travellers/status
   verbs:

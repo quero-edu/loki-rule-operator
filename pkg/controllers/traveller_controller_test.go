@@ -15,7 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	"github.com/quero-edu/loki-rule-operator/internal/log"
 	//+kubebuilder:scaffold:imports
 )
@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	err = mydomainv1alpha1.AddToScheme(scheme.Scheme)
+	err = querocomv1alpha1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		panic(err)
 	}
@@ -77,12 +77,12 @@ func TestReconcile(t *testing.T) {
 		"app": "test",
 	}
 
-	traveller := &mydomainv1alpha1.Traveller{
+	traveller := &querocomv1alpha1.Traveller{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-traveller",
 			Namespace: NAMESPACE,
 		},
-		Spec: mydomainv1alpha1.TravellerSpec{
+		Spec: querocomv1alpha1.TravellerSpec{
 			Name: configMapName,
 			Selector: metav1.LabelSelector{
 				MatchLabels: labels,

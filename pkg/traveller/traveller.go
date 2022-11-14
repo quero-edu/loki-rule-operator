@@ -1,12 +1,12 @@
 package traveller
 
 import (
-	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GenerateConfigMap(traveller *mydomainv1alpha1.Traveller) *corev1.ConfigMap {
+func GenerateConfigMap(traveller *querocomv1alpha1.Traveller) *corev1.ConfigMap {
 	labels := labels(traveller)
 
 	configMap := &corev1.ConfigMap{
@@ -21,7 +21,7 @@ func GenerateConfigMap(traveller *mydomainv1alpha1.Traveller) *corev1.ConfigMap 
 	return configMap
 }
 
-func labels(v *mydomainv1alpha1.Traveller) map[string]string {
+func labels(v *querocomv1alpha1.Traveller) map[string]string {
 	return map[string]string{
 		"app":             "visitors",
 		"visitorssite_cr": v.Name,

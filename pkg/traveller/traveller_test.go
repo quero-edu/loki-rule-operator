@@ -3,17 +3,17 @@ package traveller
 import (
 	"testing"
 
-	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGenerateConfigMap(t *testing.T) {
-	travellerInstance := &mydomainv1alpha1.Traveller{
+	travellerInstance := &querocomv1alpha1.Traveller{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-traveller",
 			Namespace: "test-namespace",
 		},
-		Spec: mydomainv1alpha1.TravellerSpec{
+		Spec: querocomv1alpha1.TravellerSpec{
 			Name: "test",
 			Data: map[string]string{
 				"foo": "bar",

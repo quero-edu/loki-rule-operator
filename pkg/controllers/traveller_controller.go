@@ -21,7 +21,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	mydomainv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	"github.com/quero-edu/loki-rule-operator/pkg/k8sutils"
 	"github.com/quero-edu/loki-rule-operator/pkg/traveller"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,9 +40,9 @@ type TravellerReconciler struct {
 	Logger log.Logger
 }
 
-//+kubebuilder:rbac:groups=my.domain,resources=travellers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=my.domain,resources=travellers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=my.domain,resources=travellers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=quero.com,resources=travellers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=quero.com,resources=travellers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=quero.com,resources=travellers/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -57,7 +57,7 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	level.Info(r.Logger).Log("msg", "Reconciling Traveller", "namespace", req.NamespacedName)
 
 	// Fetch the Traveller instance
-	instance := &mydomainv1alpha1.Traveller{}
+	instance := &querocomv1alpha1.Traveller{}
 	err := r.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -105,7 +105,7 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			deletedInstance := e.Object.(*mydomainv1alpha1.Traveller)
+			deletedInstance := e.Object.(*querocomv1alpha1.Traveller)
 			configMap := traveller.GenerateConfigMap(deletedInstance)
 			err := k8sutils.UnmountConfigMapFromDeployments(
 				r.Client,
@@ -127,7 +127,7 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 // SetupWithManager sets up the controller with the Manager.
 func (r *TravellerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&mydomainv1alpha1.Traveller{}).
+		For(&querocomv1alpha1.Traveller{}).
 		WithEventFilter(handleByEventType(r)).
 		Complete(r)
 }

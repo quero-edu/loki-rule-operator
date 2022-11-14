@@ -1,4 +1,4 @@
-apiVersion: my.domain/v1alpha1
+apiVersion: quero.com/v1alpha1
 kind: Traveller
 metadata:
   labels:

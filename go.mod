@@ -3,14 +3,16 @@ module github.com/quero-edu/loki-rule-operator
 go 1.19
 
 require (
-	github.com/onsi/ginkgo/v2 v2.4.0
-	github.com/onsi/gomega v1.24.0
 	k8s.io/apimachinery v0.25.0
 	k8s.io/client-go v0.25.0
 	sigs.k8s.io/controller-runtime v0.13.0
 )
 
-require github.com/go-logfmt/logfmt v0.5.1 // indirect
+require (
+	github.com/go-logfmt/logfmt v0.5.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.4.0 // indirect
+	github.com/onsi/gomega v1.24.0 // indirect
+)
 
 require (
 	cloud.google.com/go v0.97.0 // indirect

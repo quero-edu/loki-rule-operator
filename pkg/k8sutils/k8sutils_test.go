@@ -56,14 +56,14 @@ func TestCreateOrUpdateConfigMap(t *testing.T) {
 		},
 	}
 
-	// Create a configmap
-	err := CreateOrUpdateConfigmap(k8sClient, NAMESPACE, configMap, Options{})
+	// Create a configMap
+	err := CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMap, Options{})
 	if err != nil {
-		t.Errorf("CreateOrUpdateConfigmap() error = %v", err)
+		t.Errorf("CreateOrUpdateConfigMap() error = %v", err)
 		return
 	}
 
-	// Asserts that the configmap was created
+	// Asserts that the configMap was created
 	configMap = &corev1.ConfigMap{}
 	err = k8sClient.Get(context.TODO(), types.NamespacedName{
 		Name:      configMapName,
@@ -71,28 +71,28 @@ func TestCreateOrUpdateConfigMap(t *testing.T) {
 	}, configMap)
 
 	if err != nil {
-		t.Errorf("CreateOrUpdateConfigmap() error = %v", err)
+		t.Errorf("CreateOrUpdateConfigMap() error = %v", err)
 		return
 	}
 
 	if configMap.Name != configMapName {
 		t.Errorf(
-			"CreateOrUpdateConfigmap() error = ConfigMap was not created. Expected name to be '%s', got '%s'",
+			"CreateOrUpdateConfigMap() error = ConfigMap was not created. Expected name to be '%s', got '%s'",
 			configMapName,
 			configMap.Name,
 		)
 		return
 	}
 
-	// Update a configmap
+	// Update a configMap
 	configMap.Data = map[string]string{"foo": "bar"}
-	err = CreateOrUpdateConfigmap(k8sClient, NAMESPACE, configMap, Options{})
+	err = CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMap, Options{})
 	if err != nil {
-		t.Errorf("CreateOrUpdateConfigmap() error = %v", err)
+		t.Errorf("CreateOrUpdateConfigMap() error = %v", err)
 		return
 	}
 
-	// Asserts that the configmap was updated
+	// Asserts that the configMap was updated
 	configMap = &corev1.ConfigMap{}
 	err = k8sClient.Get(context.TODO(), types.NamespacedName{
 		Name:      configMapName,
@@ -100,13 +100,13 @@ func TestCreateOrUpdateConfigMap(t *testing.T) {
 	}, configMap)
 
 	if err != nil {
-		t.Errorf("CreateOrUpdateConfigmap() error = %v", err)
+		t.Errorf("CreateOrUpdateConfigMap() error = %v", err)
 		return
 	}
 
 	if configMap.Data["foo"] != "bar" {
 		t.Errorf(
-			"CreateOrUpdateConfigmap() error = Configmap was not updated, expected configMap.Data[\"foo\"] to be 'bar',got '%s'",
+			"CreateOrUpdateConfigMap() error = ConfigMap was not updated, expected configMap.Data[\"foo\"] to be 'bar',got '%s'",
 			configMap.Data["foo"],
 		)
 		return
@@ -152,7 +152,7 @@ func TestMountConfigMapToDeployments(t *testing.T) {
 		return
 	}
 
-	// Asserts that the configmap was mounted to the deployment
+	// Asserts that the configMap was mounted to the deployment
 	deployment := &appsv1.Deployment{}
 
 	err = k8sClient.Get(context.TODO(), types.NamespacedName{
@@ -175,13 +175,13 @@ func TestMountConfigMapToDeployments(t *testing.T) {
 	}
 
 	// "{\"test\":\"test\"}" | sha256sum
-	configmapDataHash := "3e80b3778b3b03766e7be993131c0af2ad05630c5d96fb7fa132d05b77336e04"
-	configmapHashAnnotation := fmt.Sprintf("checksum/config-%s", configMap.Name)
+	configMapDataHash := "3e80b3778b3b03766e7be993131c0af2ad05630c5d96fb7fa132d05b77336e04"
+	configMapHashAnnotation := fmt.Sprintf("checksum/config-%s", configMap.Name)
 
-	if deployment.Spec.Template.Annotations[configmapHashAnnotation] != configmapDataHash {
+	if deployment.Spec.Template.Annotations[configMapHashAnnotation] != configMapDataHash {
 		t.Errorf(
-			"AnnotateDeploymentWithConfigmapHash() error = Deployment was not annotated with the configmap hash. Expected annotation to be '%s', got '%s'",
-			configmapDataHash,
+			"AnnotateDeploymentWithConfigMapHash() error = Deployment was not annotated with the configMap hash. Expected annotation to be '%s', got '%s'",
+			configMapDataHash,
 			deployment.Spec.Template.Annotations,
 		)
 		return
@@ -256,7 +256,7 @@ func TestUnmountConfigMapFromDeployments(t *testing.T) {
 		return
 	}
 
-	// Asserts that the configmap was unmounted from the deployment
+	// Asserts that the configMap was unmounted from the deployment
 	deployment = &appsv1.Deployment{}
 	err = k8sClient.Get(context.TODO(), types.NamespacedName{
 		Name:      deploymentName,
@@ -278,7 +278,7 @@ func TestUnmountConfigMapFromDeployments(t *testing.T) {
 	configMapHashAnnotation := fmt.Sprintf("checksum/config-%s", configMap.Name)
 	if deployment.Annotations[configMapHashAnnotation] != "" {
 		t.Errorf(
-			"UnmountConfigMapFromDeployments() error = Deployment was not unannotated with the configmap hash. Expected annotation to be empty, got '%s'",
+			"UnmountConfigMapFromDeployments() error = Deployment was not unannotated with the configMap hash. Expected annotation to be empty, got '%s'",
 			deployment.Annotations[configMapHashAnnotation],
 		)
 		return

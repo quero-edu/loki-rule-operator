@@ -24,20 +24,20 @@ func TestGenerateConfigMap(t *testing.T) {
 	configMap := GenerateConfigMap(travellerInstance)
 
 	if configMap.Name != "test" {
-		t.Errorf("Expected confconfigMap name to be 'test', got %s", configMap.Name)
+		t.Errorf("Expected configMap name to be 'test', got %s", configMap.Name)
 	}
 
 	if configMap.Namespace != "test-namespace" {
-		t.Errorf("Expected confconfigMap namespace to be 'test-namespace', got %s", configMap.Namespace)
+		t.Errorf("Expected configMap namespace to be 'test-namespace', got %s", configMap.Namespace)
 	}
 
 	if configMap.Data["foo"] != "bar" {
-		t.Errorf("Expected confconfigMap data to be 'bar', got %s", configMap.Data["foo"])
+		t.Errorf("Expected configMap data to be 'bar', got %s", configMap.Data["foo"])
 	}
 
 	if configMap.Labels["visitorssite_cr"] != travellerInstance.Name {
 		t.Errorf(
-			"Expected confconfigMap label visitorssite_cr to be %s, got %s",
+			"Expected configMap label visitorssite_cr to be %s, got %s",
 			travellerInstance.Name,
 			configMap.Labels["visitorssite_cr"],
 		)

@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCreateOrUpdateConfigMap(t *testing.T) {
-	configMapName := "test-configMap"
+	configMapName := "test-configmap"
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
@@ -132,7 +132,7 @@ func TestMountConfigMapToDeployments(t *testing.T) {
 
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-configMap",
+			Name:      "test-configmap",
 			Namespace: NAMESPACE,
 		},
 		Data: map[string]string{"test": "test"},
@@ -199,7 +199,7 @@ func TestUnmountConfigMapFromDeployments(t *testing.T) {
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-configMap",
+			Name:      "test-configmap",
 			Namespace: NAMESPACE,
 		},
 	}

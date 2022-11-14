@@ -57,16 +57,16 @@ func getDeployments(cli client.Client, labelSelector metav1.LabelSelector, args 
 	return deployments, nil
 }
 
-func genVolumeNameFromConfigmap(configmap *corev1.ConfigMap) string {
-	return fmt.Sprintf("%s-volume", configmap.Name)
+func genVolumeNameFromConfconfigMap(confconfigMap *corev1.ConfigMap) string {
+	return fmt.Sprintf("%s-volume", confconfigMap.Name)
 }
 
-func genAnnotationNameFromConfigmap(configmap *corev1.ConfigMap) string {
-	return fmt.Sprintf("checksum/config-%s", configmap.Name)
+func genAnnotationNameFromConfconfigMap(confconfigMap *corev1.ConfigMap) string {
+	return fmt.Sprintf("checksum/config-%s", confconfigMap.Name)
 }
 
-func hashConfigmapData(configmap *corev1.ConfigMap) (string, error) {
-	data, err := json.Marshal(configmap.Data)
+func hashConfconfigMapData(confconfigMap *corev1.ConfigMap) (string, error) {
+	data, err := json.Marshal(confconfigMap.Data)
 	if err != nil {
 		return "", err
 	}
@@ -112,11 +112,11 @@ func removeVolumeMountByName(volumeMounts []corev1.VolumeMount, name string) []c
 	return volumeMounts
 }
 
-// CreateOrUpdateConfigmap creates or updates a Configmap in a specific namespace.
-func CreateOrUpdateConfigmap(
+// CreateOrUpdateConfconfigMap creates or updates a ConfconfigMap in a specific namespace.
+func CreateOrUpdateConfconfigMap(
 	cli client.Client,
 	namespace string,
-	configmap *corev1.ConfigMap,
+	confconfigMap *corev1.ConfigMap,
 	args Options,
 ) error {
 	args = sanitizeOptions(args)
@@ -124,29 +124,29 @@ func CreateOrUpdateConfigmap(
 
 	found := &corev1.ConfigMap{}
 	err := cli.Get(ctx, types.NamespacedName{
-		Name:      configmap.Name,
+		Name:      confconfigMap.Name,
 		Namespace: namespace,
 	}, found)
 
 	if errors.IsNotFound(err) {
-		log.Log("msg", "Creating a new Configmap", "Configmap.Namespace", namespace, "Configmap.Name", configmap.Name)
-		return cli.Create(ctx, configmap)
+		log.Log("msg", "Creating a new ConfconfigMap", "ConfconfigMap.Namespace", namespace, "ConfconfigMap.Name", confconfigMap.Name)
+		return cli.Create(ctx, confconfigMap)
 	} else if err != nil {
 		return err
 	}
 
-	log.Log("msg", "Updating Configmap", "Configmap.Namespace", namespace, "Configmap.Name", configmap.Name)
-	return cli.Update(ctx, configmap)
+	log.Log("msg", "Updating ConfconfigMap", "ConfconfigMap.Namespace", namespace, "ConfconfigMap.Name", confconfigMap.Name)
+	return cli.Update(ctx, confconfigMap)
 }
 
-// AttachConfigmapToDeployments attaches a Configmap to a Deployment if a volume with the matching generated
+// AttachConfconfigMapToDeployments attaches a ConfconfigMap to a Deployment if a volume with the matching generated
 // name does not already exist in the Deployment.
 func MountConfigMapToDeployments(
 	cli client.Client,
 	labelSelector metav1.LabelSelector,
 	namespace string,
 	mountPath string,
-	configmap *corev1.ConfigMap,
+	confconfigMap *corev1.ConfigMap,
 	args Options,
 ) error {
 	args = sanitizeOptions(args)
@@ -163,14 +163,14 @@ func MountConfigMapToDeployments(
 		return nil
 	}
 
-	volumeName := genVolumeNameFromConfigmap(configmap)
+	volumeName := genVolumeNameFromConfconfigMap(confconfigMap)
 
 	volume := corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: configmap.Name,
+					Name: confconfigMap.Name,
 				},
 			},
 		},
@@ -181,10 +181,10 @@ func MountConfigMapToDeployments(
 		MountPath: mountPath,
 	}
 
-	configMapAnnotationName := genAnnotationNameFromConfigmap(configmap)
-	configMapHash, err := hashConfigmapData(configmap)
+	configMapAnnotationName := genAnnotationNameFromConfconfigMap(confconfigMap)
+	configMapHash, err := hashConfconfigMapData(confconfigMap)
 	if err != nil {
-		log.Log("msg", "failed to hash configmap data", "err", err)
+		log.Log("msg", "failed to hash confconfigMap data", "err", err)
 		return err
 	}
 
@@ -214,11 +214,11 @@ func MountConfigMapToDeployments(
 	return nil
 }
 
-// DetachConfigmapFromDeployments detaches a Configmap from a Deployment if a volume with the matching generated
+// DetachConfconfigMapFromDeployments detaches a ConfconfigMap from a Deployment if a volume with the matching generated
 // name exists in the Deployment.
 func UnmountConfigMapFromDeployments(
 	cli client.Client,
-	configmap *corev1.ConfigMap,
+	confconfigMap *corev1.ConfigMap,
 	labelSelector metav1.LabelSelector,
 	namespace string,
 	args Options,
@@ -236,8 +236,8 @@ func UnmountConfigMapFromDeployments(
 		return nil
 	}
 
-	volumeName := genVolumeNameFromConfigmap(configmap)
-	configmapAnnotationName := genAnnotationNameFromConfigmap(configmap)
+	volumeName := genVolumeNameFromConfconfigMap(confconfigMap)
+	confconfigMapAnnotationName := genAnnotationNameFromConfconfigMap(confconfigMap)
 
 	for _, deployment := range deployments.Items {
 		if !volumeExists(volumeName, deployment) && !volumeIsMounted(volumeName, deployment) {
@@ -251,7 +251,7 @@ func UnmountConfigMapFromDeployments(
 			volumeName,
 		)
 
-		delete(deployment.Spec.Template.Annotations, configmapAnnotationName)
+		delete(deployment.Spec.Template.Annotations, confconfigMapAnnotationName)
 
 		err = cli.Update(ctx, &deployment)
 		if err != nil {

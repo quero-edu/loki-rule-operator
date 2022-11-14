@@ -139,19 +139,19 @@ func TestReconcile(t *testing.T) {
 		},
 	})
 
-	configmap := &corev1.ConfigMap{}
+	confconfigMap := &corev1.ConfigMap{}
 	err = k8sClient.Get(context.TODO(), client.ObjectKey{
 		Name:      configMapName,
 		Namespace: NAMESPACE,
-	}, configmap)
+	}, confconfigMap)
 
 	if err != nil {
-		t.Errorf("TestReconcile() Error getting configmap: %v", err)
+		t.Errorf("TestReconcile() Error getting confconfigMap: %v", err)
 		return
 	}
 
-	if configmap.Data["test"] != "test" {
-		t.Errorf("TestReconcile() Assertion failed: Configmap data is not equal to traveller data")
+	if confconfigMap.Data["test"] != "test" {
+		t.Errorf("TestReconcile() Assertion failed: ConfconfigMap data is not equal to traveller data")
 		return
 	}
 
@@ -173,7 +173,7 @@ func TestReconcile(t *testing.T) {
 	}
 
 	if deployment.Spec.Template.Spec.Volumes[0].Name != expectedVolumeName {
-		t.Errorf("TestReconcile() Assertion failed: Deployment volume name is not equal to configmap name")
+		t.Errorf("TestReconcile() Assertion failed: Deployment volume name is not equal to confconfigMap name")
 		return
 	}
 
@@ -183,7 +183,7 @@ func TestReconcile(t *testing.T) {
 	}
 
 	if deployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name != expectedVolumeName {
-		t.Errorf("TestReconcile() Assertion failed: Deployment volume mount name is not equal to configmap name")
+		t.Errorf("TestReconcile() Assertion failed: Deployment volume mount name is not equal to confconfigMap name")
 		return
 	}
 

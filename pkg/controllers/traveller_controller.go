@@ -67,14 +67,14 @@ func (r *TravellerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	controllerutil.SetControllerReference(instance, configMap, r.Scheme)
 
-	err = k8sutils.CreateOrUpdateConfigmap(
+	err = k8sutils.CreateOrUpdateConfconfigMap(
 		r.Client,
 		instance.Namespace,
 		configMap,
 		k8sutils.Options{Ctx: ctx, Logger: level.Debug(r.Logger)},
 	)
 	if err != nil {
-		level.Error(r.Logger).Log("err", err, "msg", "Failed to ensure configmap exists")
+		level.Error(r.Logger).Log("err", err, "msg", "Failed to ensure confconfigMap exists")
 		return reconcile.Result{}, err
 	}
 
@@ -116,7 +116,7 @@ func handleByEventType(r *TravellerReconciler) predicate.Predicate {
 			)
 
 			if err != nil {
-				level.Error(r.Logger).Log("err", err, "msg", "Failed to unmount configmap from deployments")
+				level.Error(r.Logger).Log("err", err, "msg", "Failed to unmount confconfigMap from deployments")
 			}
 
 			return false

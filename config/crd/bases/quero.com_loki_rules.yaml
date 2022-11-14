@@ -11,14 +11,14 @@ spec:
   names:
     kind: LokiRule
     listKind: LokiRuleList
-    plural: lokiRules
-    singular: lokiRule
+    plural: lokirules
+    singular: lokirule
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: LokiRule is the Schema for the lokiRules API
+        description: LokiRule is the Schema for the lokirules API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -42,7 +42,7 @@ spec:
               mountPath:
                 type: string
               name:
-                description: Foo is an example field of LokiRule. Edit lokiRule_types.go
+                description: Foo is an example field of LokiRule. Edit lokirule_types.go
                   to remove/update
                 type: string
               selector:

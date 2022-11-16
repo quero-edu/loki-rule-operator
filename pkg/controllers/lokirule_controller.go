@@ -106,7 +106,12 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			deletedInstance := e.Object.(*querocomv1alpha1.LokiRule)
+
+			level.Info(r.Logger).Log("msg", "Reconciling deleted LokiRule", "namespace", deletedInstance.Namespace, "name", deletedInstance.Name)
+
 			configMap := lokirule.GenerateConfigMap(deletedInstance)
+
+			level.Debug(r.Logger).Log("msg", "Unmounting configMap from deployments", "configMap", configMap.Name)
 			err := k8sutils.UnmountConfigMapFromDeployments(
 				r.Client,
 				configMap,
@@ -118,6 +123,8 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 			if err != nil {
 				level.Error(r.Logger).Log("err", err, "msg", "Failed to unmount configMap from deployments")
 			}
+
+			level.Info(r.Logger).Log("msg", "deleted LokiRule reconciled")
 
 			return false
 		},

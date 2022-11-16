@@ -1,0 +1,74 @@
+{{- $locals := include "loki-rule-operator.locals" . | fromYaml }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loki-rule-operator.fullname" . }}
+  labels:
+    {{- include "loki-rule-operator.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "loki-rule-operator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "loki-rule-operator.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ $locals.commonResources.serviceAccount.name }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /manager
+          args:
+            {{- if .Values.lokiRuleOperator.logLevel }}
+            - -log-level={{ .Values.lokiRuleOperator.logLevel }}
+            {{- end }}
+            {{- if .Values.lokiRuleOperator.metrics.port }}
+            - -metrics-bind-address=:{{ .Values.lokiRuleOperator.metrics.port }}
+            {{- end }}
+            {{- if .Values.lokiRuleOperator.healthProbe.port }}
+            - -health-probe-bind-address=:{{ .Values.lokiRuleOperator.healthProbe.port }}
+            {{- end }}
+            - -leader-elect={{ .Values.lokiRuleOperator.leaderElection.enabled }}
+            - -leader-election-namespace={{ .Release.namespace }}
+            {{- if .Values.lokiRuleOperator.leaderElection.id }}
+            - -leader-election-id={{ .Values.lokiRuleOperator.leaderElection.id }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.lokiRuleOperator.healthProbe.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.lokiRuleOperator.healthProbe.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

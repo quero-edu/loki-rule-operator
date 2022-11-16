@@ -1,15 +1,13 @@
-# permissions to do leader election.
+{{- if .Values.lokiRuleOperator.leaderElection.enabled }}
+
+{{- $locals := include "loki-rule-operator.locals" . | fromYaml }}
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   labels:
-    app.kubernetes.io/name: role
-    app.kubernetes.io/instance: leader-election-role
-    app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: operators
-    app.kubernetes.io/part-of: operators
-    app.kubernetes.io/managed-by: kustomize
-  name: leader-election-role
+    {{- include "loki-rule-operator.labels" . | nindent 4 }}
+  name: {{ $locals.commonResources.leaderElectionRole.name }}
 rules:
 - apiGroups:
   - ""
@@ -42,3 +40,4 @@ rules:
   verbs:
   - create
   - patch
+{{- end }}

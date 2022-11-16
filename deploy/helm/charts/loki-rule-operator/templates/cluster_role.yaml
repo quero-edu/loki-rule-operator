@@ -1,0 +1,58 @@
+{{- $locals := include "loki-rule-operator.locals" . | fromYaml }}
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "loki-rule-operator.labels" . | nindent 4 }}
+  name: {{ $locals.commonResources.managerClusterRole.name }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - quero.com
+  resources:
+  - lokirules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - quero.com
+  resources:
+  - lokirules/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - quero.com
+  resources:
+  - lokirules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  

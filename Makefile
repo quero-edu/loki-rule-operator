@@ -87,7 +87,11 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 .PHONY: helm-test
 helm-test: helm3-unittest
-	@helm unittest -f "**/*test.yaml" -f "tests/**/*test.yaml" ./deploy/helm/charts/* --helm3
+	helm unittest -f "**/*test.yaml" -f "tests/**/*test.yaml" ./deploy/helm/charts/* --helm3
+
+.PHONY: helm-lint
+helm-lint:
+	helm lint ./deploy/helm/charts/* --strict --with-subcharts
 ##@ Build
 
 .PHONY: build

@@ -37,3 +37,5 @@ lokiRuleOperator:
   leaderElection:
     enabled: true
     id: loki-rule-operator.quero.com
+
+keepCrds: false

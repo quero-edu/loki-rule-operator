@@ -6,6 +6,9 @@ metadata:
     {{- include "loki-rule-operator.labels" . | nindent 4 }}
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
+    {{- if .Values.keepCrds }}
+    helm.sh/resource-policy: keep
+    {{- end }}
   name: lokirules.quero.com
 spec:
   group: quero.com

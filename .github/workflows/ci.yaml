@@ -26,6 +26,6 @@ jobs:
         with:
           python-version: "3.x"
       - name: Lint Helm
-        run: make lint
+        run: make helm-lint
       - name: Test Helm
         run: make helm-test

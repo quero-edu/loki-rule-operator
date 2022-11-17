@@ -85,6 +85,9 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
+.PHONY: helm-test
+helm-test: helm3-unittest
+	@helm unittest -f "**/*test.yaml" -f "tests/**/*test.yaml" ./deploy/helm/charts/* --helm3
 ##@ Build
 
 .PHONY: build
@@ -180,3 +183,7 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+.PHONY: helm3-unittest
+helm3-unittest:
+	helm plugin list 2>/dev/null | grep unittest >/dev/null || helm plugin install https://github.com/quintush/helm-unittest --debug

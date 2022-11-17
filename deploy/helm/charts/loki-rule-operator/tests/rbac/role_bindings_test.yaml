@@ -1,0 +1,116 @@
+suite: test rolebindings
+templates:
+  - rbac/role_bindings.yaml
+
+tests:
+  - it: should bind cluster role to service account
+    values:
+      - ../minimal_values.yaml
+    release:
+      name: my-release
+      namespace: default
+    asserts:
+      - documentIndex: 0
+        isKind:
+          of: ClusterRoleBinding
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: "my-release-loki-rule-operator-manager-rolebinding"
+      - documentIndex: 0
+        equal:
+          path: metadata.labels.[app.kubernetes.io/name]
+          value: "loki-rule-operator"
+      - documentIndex: 0
+        equal:
+          path: metadata.labels.[app.kubernetes.io/instance]
+          value: "my-release"
+      - documentIndex: 0
+        equal:
+          path: metadata.labels.[app.kubernetes.io/managed-by]
+          value: "Helm"
+      - documentIndex: 0
+        matchRegex:
+          path: metadata.labels.[app.kubernetes.io/version]
+          pattern: "[0-9]+\\.[0-9]+\\.[0-9]+"
+      - documentIndex: 0
+        matchRegex:
+          path: metadata.labels.[helm.sh/chart]
+          pattern: "loki-rule-operator-[0-9]+\\.[0-9]+\\.[0-9]+"
+      - documentIndex: 0
+        equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: "my-release-loki-rule-operator-manager-role"
+      - documentIndex: 0
+        equal:
+          path: subjects[0]
+          value:
+            kind: ServiceAccount
+            name: "my-release-loki-rule-operator"
+            namespace: "default"
+
+  - it: should not bind leader_election_role if it's disabled
+    values:
+      - ../minimal_values.yaml
+    set:
+      lokiRuleOperator:
+        leaderElection:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+  - it: should bind leader_election_role if it's enabled
+    values:
+      - ../minimal_values.yaml
+    set:
+      lokiRuleOperator:
+        leaderElection:
+          enabled: true
+    release:
+      name: my-release
+      namespace: default
+    asserts:
+      - documentIndex: 1
+        isKind:
+          of: RoleBinding
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: "my-release-loki-rule-operator-leader-election-rolebinding"
+      - documentIndex: 1
+        equal:
+          path: metadata.labels.[app.kubernetes.io/name]
+          value: "loki-rule-operator"
+      - documentIndex: 1
+        equal:
+          path: metadata.labels.[app.kubernetes.io/instance]
+          value: "my-release"
+      - documentIndex: 1
+        equal:
+          path: metadata.labels.[app.kubernetes.io/managed-by]
+          value: "Helm"
+      - documentIndex: 1
+        matchRegex:
+          path: metadata.labels.[app.kubernetes.io/version]
+          pattern: "[0-9]+\\.[0-9]+\\.[0-9]+"
+      - documentIndex: 1
+        matchRegex:
+          path: metadata.labels.[helm.sh/chart]
+          pattern: "loki-rule-operator-[0-9]+\\.[0-9]+\\.[0-9]+"
+      - documentIndex: 1
+        equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: "my-release-loki-rule-operator-leader-election-role"
+      - documentIndex: 1
+        equal:
+          path: subjects[0]
+          value:
+            kind: ServiceAccount
+            name: "my-release-loki-rule-operator"
+            namespace: "default"

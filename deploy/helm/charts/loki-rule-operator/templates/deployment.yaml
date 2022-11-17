@@ -42,7 +42,7 @@ spec:
             - -health-probe-bind-address=:{{ .Values.lokiRuleOperator.healthProbe.port }}
             {{- end }}
             - -leader-elect={{ .Values.lokiRuleOperator.leaderElection.enabled }}
-            - -leader-election-namespace={{ .Release.namespace }}
+            - -leader-election-namespace={{ .Release.Namespace }}
             {{- if .Values.lokiRuleOperator.leaderElection.id }}
             - -leader-election-id={{ .Values.lokiRuleOperator.leaderElection.id }}
             {{- end }}

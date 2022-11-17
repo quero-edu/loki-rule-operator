@@ -23,7 +23,7 @@ kind: RoleBinding
 metadata:
   labels:
     {{- include "loki-rule-operator.labels" . | nindent 4 }}
-  name: {{ include "loki-rule-operator.fullname" . }}-manager-rolebinding
+  name: {{ include "loki-rule-operator.fullname" . }}-leader-election-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

@@ -21,9 +21,15 @@ func GenerateConfigMap(lokiRule *querocomv1alpha1.LokiRule) *corev1.ConfigMap {
 	return configMap
 }
 
-func labels(v *querocomv1alpha1.LokiRule) map[string]string {
-	return map[string]string{
-		"app":             "visitors",
-		"visitorssite_cr": v.Name,
+func labels(lokiRule *querocomv1alpha1.LokiRule) map[string]string {
+	labels := lokiRule.Labels
+
+	if labels == nil {
+		labels = make(map[string]string)
 	}
+
+	labels["app.kubernetes.io/component"] = "loki-rule-cfg"
+	labels["app.kubernetes.io/managed-by"] = "loki-rule-operator"
+
+	return labels
 }

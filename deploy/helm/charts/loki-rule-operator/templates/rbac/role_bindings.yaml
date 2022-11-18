@@ -1,0 +1,35 @@
+{{- $locals := include "loki-rule-operator.locals" . | fromYaml }}
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    {{- include "loki-rule-operator.labels" . | nindent 4 }}
+  name: {{ include "loki-rule-operator.fullname" . }}-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $locals.commonResources.managerClusterRole.name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $locals.commonResources.serviceAccount.name }}
+  namespace: {{ .Release.Namespace }}
+
+---
+
+{{- if .Values.lokiRuleOperator.leaderElection.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    {{- include "loki-rule-operator.labels" . | nindent 4 }}
+  name: {{ include "loki-rule-operator.fullname" . }}-leader-election-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $locals.commonResources.leaderElectionRole.name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $locals.commonResources.serviceAccount.name }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

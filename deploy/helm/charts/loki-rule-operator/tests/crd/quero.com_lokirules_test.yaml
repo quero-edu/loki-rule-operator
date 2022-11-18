@@ -1,0 +1,14 @@
+suite: test lokirules crd
+templates:
+  - crd/quero.com_lokirules.yaml
+
+tests:
+  - it: should annotate crd if keepCrds is enabled
+    values:
+      - ../minimal_values.yaml
+    set:
+      keepCrds: true
+    asserts:
+      - equal:
+          path: metadata.annotations.[helm.sh/resource-policy]
+          value: keep

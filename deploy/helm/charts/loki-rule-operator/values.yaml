@@ -1,0 +1,41 @@
+image:
+  repository: ""
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+lokiRuleOperator:
+  logLevel: info
+  metrics:
+    port: 8080
+  healthProbe:
+    port: 8081
+  leaderElection:
+    enabled: true
+    id: loki-rule-operator.quero.com
+
+keepCrds: false

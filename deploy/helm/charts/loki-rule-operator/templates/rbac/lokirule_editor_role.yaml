@@ -1,0 +1,26 @@
+# permissions for end users to edit lokirules.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "loki-rule-operator.labels" . | nindent 4 }}
+  name: {{ include "loki-rule-operator.fullname" . }}-editor-role
+rules:
+- apiGroups:
+  - quero.com
+  resources:
+  - lokirules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - quero.com
+  resources:
+  - lokirules/status
+  verbs:
+  - get

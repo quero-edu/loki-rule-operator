@@ -16,17 +16,9 @@ You’ll need a Kubernetes cluster to run against. You can use [KIND](https://si
 kubectl apply -f config/samples/
 ```
 
-2. Build and push your image to the location specified by `IMG`:
-	
-```sh
-make docker-build docker-push IMG=<some-registry>/operators:tag
-```
-	
-3. Deploy the controller to the cluster with the image specified by `IMG`:
+2. Build and push your image to the location specified by `IMG` and `TAG`:
 
-```sh
-make deploy IMG=<some-registry>/operators:tag
-```
+// TODO: setup container registry
 
 ### Uninstall CRDs
 To delete the CRDs from the cluster:
@@ -48,8 +40,8 @@ make undeploy
 ### How it works
 This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/)
 
-It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) 
-which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster 
+It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/)
+which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster
 
 ### Test It Out
 1. Install the CRDs into the cluster:

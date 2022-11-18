@@ -1,0 +1,44 @@
+releaseSetup: &releaseSetup
+  name: my-release
+serviceAccountName: &serviceAccountName my-release-loki-rule-operator
+serviceAccountCustomName: &serviceAccountCustomName some-custom-name
+
+
+suite: test deployment and service account integration
+templates:
+  - deployment.yaml
+  - serviceaccount.yaml
+tests:
+  - it: should set the same name in both templates when using the default name
+    values:
+      - ../minimal_values.yaml
+    set:
+      serviceAccount:
+        create: true
+        name: ""
+    release: *releaseSetup
+    asserts:
+      - equal:
+          path: metadata.name
+          value: *serviceAccountName
+        template: serviceaccount.yaml
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: *serviceAccountName
+        template: deployment.yaml
+  - it: should set the same name in both templates when using a custom name
+    values:
+      - ../minimal_values.yaml
+    set:
+      serviceAccount:
+        create: true
+        name: *serviceAccountCustomName
+    asserts:
+      - equal:
+          path: metadata.name
+          value: *serviceAccountCustomName
+        template: serviceaccount.yaml
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: *serviceAccountCustomName
+        template: deployment.yaml

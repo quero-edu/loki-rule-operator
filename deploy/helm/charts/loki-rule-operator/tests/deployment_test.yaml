@@ -27,7 +27,6 @@ tests:
       - matchRegex:
           path: metadata.labels.[helm.sh/chart]
           pattern: "loki-rule-operator-[0-9]+\\.[0-9]+\\.[0-9]+"
-
   - it: should set selectorLabels according to pod template labels
     values:
       - ./minimal_values.yaml
@@ -158,3 +157,14 @@ tests:
             values:
               - e2e-az1
               - e2e-az2
+  - it: should set service account name
+    values:
+      - ./minimal_values.yaml
+    set:
+      serviceAccount:
+        create: true
+        name: my-service-account
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: my-service-account

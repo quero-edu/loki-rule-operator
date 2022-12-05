@@ -1,7 +1,7 @@
 image:
-  repository: ""
+  repository: "ghcr.io/quero-edu/loki-rule-operator"
   pullPolicy: IfNotPresent
-  tag: ""
+  tag: "0.0.1"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -16,11 +16,11 @@ podAnnotations: {}
 
 resources:
   limits:
-    cpu: 500m
-    memory: 128Mi
+    cpu: 200m
+    memory: 254Mi
   requests:
-    cpu: 10m
-    memory: 64Mi
+    cpu: 100m
+    memory: 128Mi
 
 nodeSelector: {}
 

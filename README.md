@@ -9,7 +9,7 @@ Loki Rule Operator utilizes Configmaps to mount rules provided by CRDs into loki
 We provide a helm-chart with all CRDs and manifests necessary for running the loki-rule-operator:
 
 ```bash
-helm repo add queroedu https://quero-edu.github.io/loki-rule-
+helm repo add queroedu https://quero-edu.github.io/loki-rule-operator
 helm upgrade loki-rule-operator queroedu/loki-rule-operator --install
 ```
 

@@ -28,10 +28,8 @@ type LokiRuleSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Name      string               `json:"name,omitempty" yaml:"name"`
-	Selector  metav1.LabelSelector `json:"selector,omitempty" yaml:"selector"`
-	MountPath string               `json:"mountPath,omitempty" yaml:"mountPath"`
-	Data      map[string]string    `json:"data,omitempty" yaml:"data"`
+	Name string            `json:"name,omitempty" yaml:"name"`
+	Data map[string]string `json:"data,omitempty" yaml:"data"`
 }
 
 // LokiRuleStatus defines the observed state of LokiRule

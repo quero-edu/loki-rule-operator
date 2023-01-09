@@ -18,12 +18,14 @@ package controllers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	"github.com/quero-edu/loki-rule-operator/pkg/k8sutils"
 	"github.com/quero-edu/loki-rule-operator/pkg/lokirule"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,51 +42,81 @@ type LokiRuleReconciler struct {
 	Logger log.Logger
 }
 
-//+kubebuilder:rbac:groups=quero.com,resources=lokiRules,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=quero.com,resources=lokiRules/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=quero.com,resources=lokiRules/finalizers,verbs=update
+var LOKI_INSTANCE_LABEL_SELECTOR *metav1.LabelSelector
+var LOKI_INSTANCE_NAMESPACE string
+var LOKI_INSTANCE_RULE_MOUNTPATH string
+
+func parseLabelSelectorStringToMap(input string) map[string]string {
+	result := make(map[string]string)
+	pairs := strings.Split(input, ",")
+	for _, pair := range pairs {
+		keyValue := strings.Split(pair, "=")
+		if len(keyValue) == 2 {
+			result[keyValue[0]] = keyValue[1]
+		}
+	}
+	return result
+}
+
+func getLokiInstanceConfig() (*metav1.LabelSelector, string, string) {
+	return LOKI_INSTANCE_LABEL_SELECTOR, LOKI_INSTANCE_NAMESPACE, LOKI_INSTANCE_RULE_MOUNTPATH
+}
+
+func setLokiInstanceConfig(labelSelector string, namespace string, mountPath string) {
+	labelSelectorMap := parseLabelSelectorStringToMap(labelSelector)
+	LOKI_INSTANCE_LABEL_SELECTOR = &metav1.LabelSelector{
+		MatchLabels: labelSelectorMap,
+	}
+	LOKI_INSTANCE_NAMESPACE = namespace
+	LOKI_INSTANCE_RULE_MOUNTPATH = mountPath
+}
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the LokiRule object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	options := k8sutils.Options{Ctx: ctx, Logger: level.Debug(r.Logger)}
+
+	lokiLabelSelector, lokiNamespace, lokiRuleMountPath := getLokiInstanceConfig()
+	lokiStatefulSet, err := k8sutils.GetLokiStatefulSetInstance(r.Client, lokiLabelSelector, lokiNamespace, options)
+	if err != nil {
+		level.Error(r.Logger).Log("err", err, "msg", "Failed to get Loki StatefulSet instance")
+		return reconcile.Result{}, err
+	}
+
 	level.Info(r.Logger).Log("msg", "Reconciling LokiRule", "namespace", req.NamespacedName)
 
-	// Fetch the LokiRule instance
 	instance := &querocomv1alpha1.LokiRule{}
-	err := r.Get(ctx, req.NamespacedName, instance)
+	err = r.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	configMap := lokirule.GenerateConfigMap(instance)
+	labels := lokirule.GenerateLokiRuleLabels(instance)
 
-	controllerutil.SetControllerReference(instance, configMap, r.Scheme)
-
-	err = k8sutils.CreateOrUpdateConfigMap(
+	configMap, err := k8sutils.CreateOrUpdateConfigMap(
 		r.Client,
 		instance.Namespace,
-		configMap,
-		k8sutils.Options{Ctx: ctx, Logger: level.Debug(r.Logger)},
+		instance.Spec.Name,
+		instance.Spec.Data,
+		labels,
+		options,
 	)
 	if err != nil {
 		level.Error(r.Logger).Log("err", err, "msg", "Failed to ensure configMap exists")
 		return reconcile.Result{}, err
 	}
 
-	err = k8sutils.MountConfigMapToDeployments(
+	controllerutil.SetControllerReference(instance, configMap, r.Scheme)
+
+	err = k8sutils.MountConfigMap(
 		r.Client,
-		instance.Spec.Selector,
-		instance.Namespace,
-		instance.Spec.MountPath,
 		configMap,
-		k8sutils.Options{Ctx: ctx, Logger: level.Debug(r.Logger)},
+		lokiRuleMountPath,
+		lokiStatefulSet,
+		options,
 	)
 	if err != nil {
 		level.Error(r.Logger).Log("err", err, "msg", "ConfigMap not attached")
@@ -107,16 +139,20 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			deletedInstance := e.Object.(*querocomv1alpha1.LokiRule)
 
+			lokiLabelSelector, lokiNamespace, _ := getLokiInstanceConfig()
+			lokiStatefulSet, err := k8sutils.GetLokiStatefulSetInstance(r.Client, lokiLabelSelector, lokiNamespace, k8sutils.Options{Ctx: context.Background(), Logger: level.Debug(r.Logger)})
+			if err != nil {
+				level.Error(r.Logger).Log("err", err, "msg", "Failed to get loki statefulset")
+				return false
+			}
+
 			level.Info(r.Logger).Log("msg", "Reconciling deleted LokiRule", "namespace", deletedInstance.Namespace, "name", deletedInstance.Name)
 
-			configMap := lokirule.GenerateConfigMap(deletedInstance)
-
-			level.Debug(r.Logger).Log("msg", "Unmounting configMap from deployments", "configMap", configMap.Name)
-			err := k8sutils.UnmountConfigMapFromDeployments(
+			level.Debug(r.Logger).Log("msg", "Unmounting configMap from loki statefulset")
+			err = k8sutils.UnmountConfigMapFromStatefulSet(
 				r.Client,
-				configMap,
-				deletedInstance.Spec.Selector,
-				deletedInstance.Namespace,
+				deletedInstance.Spec.Name,
+				lokiStatefulSet,
 				k8sutils.Options{Ctx: context.Background(), Logger: level.Debug(r.Logger)},
 			)
 
@@ -132,7 +168,8 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *LokiRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *LokiRuleReconciler) SetupWithManager(mgr ctrl.Manager, namespace string, labelSelector string, mountPath string) error {
+	setLokiInstanceConfig(labelSelector, namespace, mountPath)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&querocomv1alpha1.LokiRule{}).
 		WithEventFilter(handleByEventType(r)).

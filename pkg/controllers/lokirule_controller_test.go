@@ -63,6 +63,8 @@ func TestMain(m *testing.M) {
 		Logger: log.NewLogger("all"),
 	}
 
+	setLokiInstanceConfig("app=loki", NAMESPACE, "/var/loki/rules")
+
 	m.Run()
 
 	testEnv.Stop()
@@ -70,12 +72,6 @@ func TestMain(m *testing.M) {
 
 func TestReconcile(t *testing.T) {
 	const configMapName = "test-lokirule-config"
-	const deploymentName = "test-lokirule-deployment"
-	const mountPath = "/etc/lokiRule"
-
-	labels := map[string]string{
-		"app": "test",
-	}
 
 	lokiRule := &querocomv1alpha1.LokiRule{
 		ObjectMeta: metav1.ObjectMeta{
@@ -84,45 +80,15 @@ func TestReconcile(t *testing.T) {
 		},
 		Spec: querocomv1alpha1.LokiRuleSpec{
 			Name: configMapName,
-			Selector: metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			MountPath: mountPath,
 			Data: map[string]string{
 				"test": "test",
 			},
 		},
 	}
 
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: NAMESPACE,
-			Labels:    labels,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "test-container",
-							Image: "test-image",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := k8sClient.Create(context.TODO(), deployment)
+	statefulSet, err := createLokiStatefulset()
 	if err != nil {
-		t.Errorf("TestReconcile() Error creating deployment: %v", err)
+		t.Errorf("TestReconcile() Error creating statefulset: %v", err)
 		return
 	}
 
@@ -155,11 +121,10 @@ func TestReconcile(t *testing.T) {
 		return
 	}
 
-	deployment = &appsv1.Deployment{}
 	err = k8sClient.Get(context.TODO(), client.ObjectKey{
-		Name:      deploymentName,
+		Name:      statefulSet.Name,
 		Namespace: NAMESPACE,
-	}, deployment)
+	}, statefulSet)
 	if err != nil {
 		t.Errorf("TestReconcile() Error getting deployment: %v", err)
 		return
@@ -167,28 +132,55 @@ func TestReconcile(t *testing.T) {
 
 	expectedVolumeName := fmt.Sprintf("%s-volume", configMapName)
 
-	if len(deployment.Spec.Template.Spec.Volumes) != 1 {
+	if len(statefulSet.Spec.Template.Spec.Volumes) != 1 {
 		t.Errorf("TestReconcile() Assertion failed: Deployment volumes length is not equal to 1")
 		return
 	}
 
-	if deployment.Spec.Template.Spec.Volumes[0].Name != expectedVolumeName {
+	if statefulSet.Spec.Template.Spec.Volumes[0].Name != expectedVolumeName {
 		t.Errorf("TestReconcile() Assertion failed: Deployment volume name is not equal to configMap name")
 		return
 	}
 
-	if len(deployment.Spec.Template.Spec.Containers[0].VolumeMounts) != 1 {
+	if len(statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts) != 1 {
 		t.Errorf("TestReconcile() Assertion failed: Deployment volume mounts length is not equal to 1")
 		return
 	}
 
-	if deployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name != expectedVolumeName {
+	if statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name != expectedVolumeName {
 		t.Errorf("TestReconcile() Assertion failed: Deployment volume mount name is not equal to configMap name")
 		return
 	}
 
-	if deployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath != mountPath {
+	if statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath != LOKI_INSTANCE_RULE_MOUNTPATH {
 		t.Errorf("TestReconcile() Assertion failed: Deployment volume mount path is not equal to lokiRule mount path")
 		return
 	}
+}
+
+func createLokiStatefulset() (*appsv1.StatefulSet, error) {
+	labels := map[string]string{
+		"app": "loki",
+	}
+
+	lokiStatefulSet := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "loki",
+			Namespace: NAMESPACE,
+			Labels:    labels,
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: labels},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: labels},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "loki", Image: "grafana/loki:2.2.1"}}}},
+		},
+	}
+
+	err := k8sClient.Create(context.TODO(), lokiStatefulSet)
+	if err != nil {
+		return nil, err
+	}
+
+	return lokiStatefulSet, nil
 }

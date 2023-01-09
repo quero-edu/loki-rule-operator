@@ -71,6 +71,9 @@ tests:
       - ./minimal_values.yaml
     set:
       lokiRuleOperator:
+        lokiLabelSelector: "app.kubernetes.io/name=loki,app.kubernetes.io/instance=my-loki"
+        lokiNamespace: "loki"
+        lokiRuleMountPath: "/var/loki"
         logLevel: debug
         metrics:
           port: 9090
@@ -86,6 +89,9 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].args
           value:
+            - "-loki-label-selector=app.kubernetes.io/name=loki,app.kubernetes.io/instance=my-loki"
+            - "-loki-namespace=loki"
+            - "-loki-rule-mount-path=/var/loki"
             - "-log-level=debug"
             - "-metrics-bind-address=:9090"
             - "-health-probe-bind-address=:9091"

@@ -32,7 +32,6 @@ import (
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	"github.com/quero-edu/loki-rule-operator/internal/log"
 	"github.com/quero-edu/loki-rule-operator/pkg/controllers"
-	//+kubebuilder:scaffold:imports
 )
 
 var logger = log.NewLogger("all")
@@ -61,6 +60,9 @@ func main() {
 	var leaderElectionNamespace string
 	var leaderElectionId string
 	var logLevel string
+	var lokiLabelSelector string
+	var lokiNamespace string
+	var lokiRuleMountPath string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -69,6 +71,9 @@ func main() {
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "default", "The namespace where the leader election configmap will be created.")
 	flag.StringVar(&leaderElectionId, "leader-election-id", "21ccfc3d.quero.com", "The id used to distinguish between multiple controller manager instances.")
 	flag.StringVar(&logLevel, "log-level", "info", "The log level (debug, info, warn, error, all).")
+	flag.StringVar(&lokiLabelSelector, "loki-label-selector", "", "The label selector used to filter loki instances.")
+	flag.StringVar(&lokiNamespace, "loki-namespace", "default", "The namespace where the operator will operate (same as target loki instance).")
+	flag.StringVar(&lokiRuleMountPath, "loki-rule-mount-path", "/etc/loki/rules", "The path where the operator will mount the loki rules configmap.")
 	flag.Parse()
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -90,11 +95,10 @@ func main() {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Logger: log.NewLogger(logLevel),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, lokiNamespace, lokiLabelSelector, lokiRuleMountPath); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "LokiRule")
 		os.Exit(1)
 	}
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

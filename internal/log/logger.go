@@ -3,8 +3,8 @@ package log
 import (
 	"os"
 
-	"github.com/go-kit/log"
-	loglevel "github.com/go-kit/log/level"
+	gokitlog "github.com/go-kit/log"
+	gokitlevel "github.com/go-kit/log/level"
 )
 
 const (
@@ -15,23 +15,23 @@ const (
 	levelError string = "error"
 )
 
-var logLevelMapping = map[string]loglevel.Option{
-	levelAll:   loglevel.AllowAll(),
-	levelDebug: loglevel.AllowDebug(),
-	levelInfo:  loglevel.AllowInfo(),
-	levelWarn:  loglevel.AllowWarn(),
-	levelError: loglevel.AllowError(),
+var logLevelMapping = map[string]gokitlevel.Option{
+	levelAll:   gokitlevel.AllowAll(),
+	levelDebug: gokitlevel.AllowDebug(),
+	levelInfo:  gokitlevel.AllowInfo(),
+	levelWarn:  gokitlevel.AllowWarn(),
+	levelError: gokitlevel.AllowError(),
 }
 
-func NewLogger(level string) log.Logger {
+func NewLogger(level string) gokitlog.Logger {
 	optionLevel, ok := logLevelMapping[level]
 
 	if !ok {
-		optionLevel = loglevel.AllowAll()
+		optionLevel = gokitlevel.AllowAll()
 	}
 
-	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stdout))
-	logger = loglevel.NewFilter(logger, optionLevel)
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
+	logger := gokitlog.NewJSONLogger(gokitlog.NewSyncWriter(os.Stdout))
+	logger = gokitlevel.NewFilter(logger, optionLevel)
+	logger = gokitlog.With(logger, "ts", gokitlog.DefaultTimestampUTC, "caller", gokitlog.DefaultCaller)
 	return logger
 }

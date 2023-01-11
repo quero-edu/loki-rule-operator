@@ -3,7 +3,6 @@ package k8sutils
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -12,29 +11,32 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
+
+func TestK8sUtils(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "K8sUtils Suite")
+}
 
 const NAMESPACE = "default"
 
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
-func TestMain(m *testing.M) {
+var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{}
 
 	cfg, err := testEnv.Start()
-	if err != nil {
-		panic(err)
-	}
+	Expect(err).ToNot(HaveOccurred())
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = client.New(cfg, client.Options{Scheme: testEnv.Scheme})
 
-	if err != nil {
-		panic(err)
-	}
+	Expect(err).ToNot(HaveOccurred())
 
 	namespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -43,312 +45,236 @@ func TestMain(m *testing.M) {
 	}
 
 	k8sClient.Create(context.TODO(), namespace)
+})
 
-	m.Run()
-
+var _ = AfterSuite(func() {
 	testEnv.Stop()
-}
+})
 
-func TestCreateOrUpdateConfigMap(t *testing.T) {
-	// Create a configMap
-	configMapName := "test-configmap"
-	configMapData := map[string]string{"foo": "bar"}
-	configMapLabels := map[string]string{"lfoo": "lbar"}
+var _ = Describe("K8sutils", func() {
+	Describe("TestCreateOrUpdateConfigMap", func() {
+		It("should create a ConfigMap with the given data and labels", func() {
+			configMapName := "test-configmap-create"
+			configMapData := map[string]string{"foo": "bar"}
+			configMapLabels := map[string]string{"lfoo": "lbar"}
+			_, err := CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, configMapData, configMapLabels, Options{})
+			Expect(err).To(BeNil())
 
-	_, err := CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, configMapData, configMapLabels, Options{})
-	if err != nil {
-		t.Errorf("CreateOrUpdateConfigMap() error = %v", err)
-		return
-	}
+			configMap := &corev1.ConfigMap{}
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{
+				Name:      configMapName,
+				Namespace: NAMESPACE,
+			}, configMap)
 
-	// Asserts that the configMap was created
-	configMap := &corev1.ConfigMap{}
-	err = k8sClient.Get(context.TODO(), types.NamespacedName{
-		Name:      configMapName,
-		Namespace: NAMESPACE,
-	}, configMap)
+			Expect(err).To(BeNil())
+			Expect(configMap.Name).To(Equal(configMapName))
+			Expect(configMap.Data).To(Equal(configMapData))
+			Expect(configMap.Labels).To(Equal(configMapLabels))
+		})
 
-	if err != nil {
-		t.Errorf("CreateOrUpdateConfigMap() error = %v", err)
-		return
-	}
+		It("should update the ConfigMap with new data", func() {
+			configMapName := "test-configmap-update"
+			configMapData := map[string]string{"foo": "bar"}
+			configMapLabels := map[string]string{"lfoo": "lbar"}
 
-	if configMap.Name != configMapName {
-		t.Errorf(
-			"CreateOrUpdateConfigMap() error = ConfigMap was not created. Expected name to be '%s', got '%s'",
-			configMapName,
-			configMap.Name,
-		)
-		return
-	}
+			configMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: NAMESPACE,
+					Labels:    configMapLabels,
+				},
+				Data: configMapData,
+			}
 
-	if !reflect.DeepEqual(configMap.Data, configMapData) {
-		t.Errorf(
-			"CreateOrUpdateConfigMap() error = ConfigMap was not created. Expected configMap.Data to be %s, got '%s'",
-			configMapData,
-			configMap.Data,
-		)
-	}
+			err := k8sClient.Create(context.TODO(), configMap)
+			Expect(err).To(BeNil())
 
-	if !reflect.DeepEqual(configMap.Labels, configMapLabels) {
-		t.Errorf(
-			"CreateOrUpdateConfigMap() error = ConfigMap was not created. Expected configMap.Labels to be %s, got '%s'",
-			configMapLabels,
-			configMap.Labels,
-		)
-	}
+			newConfigMapData := map[string]string{"baz": "foo"}
+			_, err = CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, newConfigMapData, configMapLabels, Options{})
+			Expect(err).To(BeNil())
 
-	// Update a configMap
-	configMapData = map[string]string{"baz": "foo"}
-	_, err = CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, configMapData, configMapLabels, Options{})
-	if err != nil {
-		t.Errorf("CreateOrUpdateConfigMap() error = %v", err)
-		return
-	}
+			configMap = &corev1.ConfigMap{}
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{
+				Name:      configMapName,
+				Namespace: NAMESPACE,
+			}, configMap)
 
-	// Asserts that the configMap was updated
-	configMap = &corev1.ConfigMap{}
-	err = k8sClient.Get(context.TODO(), types.NamespacedName{
-		Name:      configMapName,
-		Namespace: NAMESPACE,
-	}, configMap)
+			Expect(err).To(BeNil())
+			Expect(configMap.Data).To(Equal(newConfigMapData))
+		})
+	})
 
-	if err != nil {
-		t.Errorf("CreateOrUpdateConfigMap() error = %v", err)
-		return
-	}
+	Describe("TestGetStatefulSet", func() {
+		var statefulSet *appsv1.StatefulSet
+		var err error
 
-	if !reflect.DeepEqual(configMap.Data, configMapData) {
-		t.Errorf(
-			"CreateOrUpdateConfigMap() error = ConfigMap was not updated, expected configMap.Data to be %s, got '%s'",
-			configMapData,
-			configMap.Data,
-		)
-		return
-	}
-}
+		BeforeEach(func() {
+			statefulSet, err = createStatefulSet()
+			Expect(err).To(BeNil())
+		})
+		AfterEach(func() {
+			_, err = deleteStatefulSet()
+			Expect(err).To(BeNil())
+		})
 
-func TestGetLokiStatefulSetInstance(t *testing.T) {
-	_, err := deleteLokiStatefulSet()
-	if err != nil {
-		t.Errorf("GetLokiStatefulSetInstance() setup error = %v", err)
-		return
-	}
+		Context("With matching label selector", func() {
+			It("Should return the statefulSet", func() {
+				labelSelector := metav1.LabelSelector{
+					MatchLabels: statefulSet.Labels,
+				}
 
-	lokiStatefulSet, err := createLokiStatefulset()
-	if err != nil {
-		t.Errorf("GetLokiStatefulSetInstance() setup error = %v", err)
-		return
-	}
+				resultStatefulSet, err := GetStatefulSet(k8sClient, &labelSelector, NAMESPACE, Options{})
+				Expect(err).To(BeNil())
+				Expect(resultStatefulSet).To(Equal(statefulSet))
+			})
+		})
 
-	labelSelector := metav1.LabelSelector{
-		MatchLabels: lokiStatefulSet.Labels,
-	}
+		Context("With non-matching label selector", func() {
+			It("Should return an error", func() {
+				nonMatchingLabels := map[string]string{
+					"app.kubernetes.io/name": "not-loki",
+				}
 
-	lokiStatefulSetInstance, err := GetLokiStatefulSetInstance(k8sClient, &labelSelector, NAMESPACE, Options{})
+				nonMatchingLabelSelector := metav1.LabelSelector{
+					MatchLabels: nonMatchingLabels,
+				}
 
-	if err != nil {
-		t.Errorf("GetLokiStatefulSetInstance() error = %v", err)
-		return
-	}
+				emptyResult, err := GetStatefulSet(k8sClient, &nonMatchingLabelSelector, NAMESPACE, Options{})
+				Expect(err.Error()).To(Equal("no statefulSets found"))
+				Expect(emptyResult).To(BeNil())
+			})
+		})
+	})
 
-	if lokiStatefulSetInstance.Name != lokiStatefulSet.Name {
-		t.Errorf(
-			"GetLokiStatefulSetInstance() error = Expected LokiStatefulSet name to be '%s', got '%s'",
-			lokiStatefulSet.Name,
-			lokiStatefulSetInstance.Name,
-		)
-		return
-	}
+	Describe("MountConfigMap", func() {
+		const mountPath = "/etc/config"
 
-	if lokiStatefulSetInstance.Namespace != lokiStatefulSet.Namespace {
-		t.Errorf(
-			"GetLokiStatefulSetInstance() error = Expected LokiStatefulSet namespace to be '%s', got '%s'",
-			lokiStatefulSet.Namespace,
-			lokiStatefulSetInstance.Namespace,
-		)
-		return
-	}
+		var statefulSet *appsv1.StatefulSet
+		var err error
 
-	if !reflect.DeepEqual(lokiStatefulSetInstance.Labels, lokiStatefulSet.Labels) {
-		t.Errorf(
-			"GetLokiStatefulSetInstance() error = Expected LokiStatefulSet labels to be %s, got '%s'",
-			lokiStatefulSet.Labels,
-			lokiStatefulSetInstance.Labels,
-		)
-		return
-	}
+		configMapName := "loki-config"
+		configMapData := map[string]string{"foo": "bar"}
+		configMapLabels := map[string]string{"app.kubernetes.io/name": "loki"}
 
-	nonMatchingLabels := map[string]string{
-		"app.kubernetes.io/name": "not-loki",
-	}
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      configMapName,
+				Namespace: NAMESPACE,
+				Labels:    configMapLabels,
+			},
+			Data: configMapData,
+		}
 
-	clearSingletons()
+		BeforeEach(func() {
+			statefulSet, err = createStatefulSet()
+			Expect(err).To(BeNil())
 
-	nonMatchingLabelSelector := metav1.LabelSelector{
-		MatchLabels: nonMatchingLabels,
-	}
+			err = k8sClient.Create(context.TODO(), configMap)
+			Expect(err).To(BeNil())
+		})
+		AfterEach(func() {
+			_, err = deleteStatefulSet()
+			Expect(err).To(BeNil())
 
-	_, err = GetLokiStatefulSetInstance(k8sClient, &nonMatchingLabelSelector, NAMESPACE, Options{})
+			err = k8sClient.Delete(context.TODO(), configMap)
+			Expect(err).To(BeNil())
+		})
 
-	expectedError := "no statefulSets found"
-	if err.Error() != expectedError {
-		t.Errorf("GetLokiStatefulSetInstance() expected '%s' error, got '%v'", expectedError, err)
-		return
-	}
-}
+		It("Should mount the configMap", func() {
+			err = MountConfigMap(k8sClient, configMap, mountPath, statefulSet, Options{})
+			Expect(err).To(BeNil())
 
-func TestMountConfigMap(t *testing.T) {
-	configMapName := "loki-config"
-	configMapData := map[string]string{"foo": "bar"}
-	configMapLabels := map[string]string{"app.kubernetes.io/name": "loki"}
+			updatedStatefulSet := &appsv1.StatefulSet{}
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{
+				Name:      statefulSet.Name,
+				Namespace: statefulSet.Namespace,
+			}, updatedStatefulSet)
+			Expect(err).To(BeNil())
 
-	configMap, err := CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, configMapData, configMapLabels, Options{})
-	if err != nil {
-		t.Errorf("MountConfigMap() setup error = %v", err)
-		return
-	}
+			Expect(updatedStatefulSet.Spec.Template.Spec.Volumes[0].Name).To(Equal(fmt.Sprintf("%s-volume", configMapName)))
+			Expect(updatedStatefulSet.Spec.Template.Spec.Volumes[0].ConfigMap.LocalObjectReference.Name).To(Equal(configMapName))
 
-	_, err = deleteLokiStatefulSet()
-	if err != nil {
-		t.Errorf("GetLokiStatefulSetInstance() setup error = %v", err)
-		return
-	}
+			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name).To(Equal(fmt.Sprintf("%s-volume", configMapName)))
+			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath).To(Equal(mountPath))
+		})
+	})
 
-	lokiStatefulSet, err := createLokiStatefulset()
-	if err != nil {
-		t.Errorf("MountConfigMap() setup error = %v", err)
-		return
-	}
+	Describe("UnmountConfigMap", func() {
+		const mountPath = "/etc/config"
 
-	mountPath := "/var/loki"
+		var statefulSet *appsv1.StatefulSet
+		var err error
 
-	err = MountConfigMap(k8sClient, configMap, mountPath, lokiStatefulSet, Options{})
-	if err != nil {
-		t.Errorf("MountConfigMap() error = %v", err)
-		return
-	}
+		configMapName := "loki-config"
+		configMapData := map[string]string{"foo": "bar"}
+		configMapLabels := map[string]string{"app.kubernetes.io/name": "loki"}
 
-	clearSingletons()
-	lokiStatefulSetInstance, err := GetLokiStatefulSetInstance(k8sClient, &metav1.LabelSelector{MatchLabels: lokiStatefulSet.Labels}, NAMESPACE, Options{})
-	if err != nil {
-		t.Errorf("MountConfigMap() setup error = %v", err)
-		return
-	}
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      configMapName,
+				Namespace: NAMESPACE,
+				Labels:    configMapLabels,
+			},
+			Data: configMapData,
+		}
 
-	lokiStatefulSetInstanceVolumeMounts := lokiStatefulSetInstance.Spec.Template.Spec.Containers[0].VolumeMounts
-	lokiStatefulSetInstanceVolumes := lokiStatefulSetInstance.Spec.Template.Spec.Volumes
+		BeforeEach(func() {
+			statefulSet, err = createStatefulSet()
+			Expect(err).To(BeNil())
 
-	if len(lokiStatefulSetInstanceVolumeMounts) != 1 {
-		t.Errorf("MountConfigMap() error = Expected 1 volume mount, got %d", len(lokiStatefulSetInstanceVolumeMounts))
-		return
-	}
+			err = k8sClient.Create(context.TODO(), configMap)
+			Expect(err).To(BeNil())
 
-	expectedVolumeName := fmt.Sprintf("%s-volume", configMap.Name)
+			statefulSet.Spec.Template.Spec.Volumes = []corev1.Volume{
+				{
+					Name: fmt.Sprintf("%s-volume", configMapName),
+					VolumeSource: corev1.VolumeSource{
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: configMapName,
+							},
+						},
+					},
+				},
+			}
 
-	if lokiStatefulSetInstanceVolumeMounts[0].Name != expectedVolumeName {
-		t.Errorf(
-			"MountConfigMap() error = Expected volume mount name to be '%s', got '%s'",
-			configMap.Name,
-			lokiStatefulSetInstanceVolumeMounts[0].Name,
-		)
-		return
-	}
+			statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+				{
+					Name:      fmt.Sprintf("%s-volume", configMapName),
+					MountPath: mountPath,
+				},
+			}
 
-	if lokiStatefulSetInstanceVolumeMounts[0].MountPath != mountPath {
-		t.Errorf(
-			"MountConfigMap() error = Expected volume mount path to be '%s', got '%s'",
-			mountPath,
-			lokiStatefulSetInstanceVolumeMounts[0].MountPath,
-		)
-		return
-	}
+			err = k8sClient.Update(context.TODO(), statefulSet)
+			Expect(err).To(BeNil())
+		})
 
-	if len(lokiStatefulSetInstanceVolumes) != 1 {
-		t.Errorf("MountConfigMap() error = Expected 1 volume, got %d", len(lokiStatefulSetInstanceVolumes))
-		return
-	}
+		AfterEach(func() {
+			_, err = deleteStatefulSet()
+			Expect(err).To(BeNil())
 
-	if lokiStatefulSetInstanceVolumes[0].Name != expectedVolumeName {
-		t.Errorf(
-			"MountConfigMap() error = Expected volume name to be '%s', got '%s'",
-			configMap.Name,
-			lokiStatefulSetInstanceVolumes[0].Name,
-		)
-		return
-	}
+			err = k8sClient.Delete(context.TODO(), configMap)
+			Expect(err).To(BeNil())
+		})
 
-	if lokiStatefulSetInstanceVolumes[0].ConfigMap.Name != configMap.Name {
-		t.Errorf(
-			"MountConfigMap() error = Expected volume configMap name to be '%s', got '%s'",
-			configMap.Name,
-			lokiStatefulSetInstanceVolumes[0].ConfigMap.Name,
-		)
-		return
-	}
-}
+		It("Should unmount the configMap", func() {
+			err = UnmountConfigMap(k8sClient, configMapName, statefulSet, Options{})
+			Expect(err).To(BeNil())
 
-func TestUnmountConfigMapFromStatefulSet(t *testing.T) {
-	configMapName := "loki-config"
-	configMapData := map[string]string{"foo": "bar"}
-	configMapLabels := map[string]string{"app.kubernetes.io/name": "loki"}
+			updatedStatefulSet := &appsv1.StatefulSet{}
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{
+				Name:      statefulSet.Name,
+				Namespace: statefulSet.Namespace,
+			}, updatedStatefulSet)
+			Expect(err).To(BeNil())
 
-	configMap, err := CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, configMapData, configMapLabels, Options{})
-	if err != nil {
-		t.Errorf("UnmountConfigMapFromStatefulSet() setup error = %v", err)
-		return
-	}
+			Expect(updatedStatefulSet.Spec.Template.Spec.Volumes).To(BeEmpty())
+			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts).To(BeEmpty())
+		})
+	})
+})
 
-	_, err = deleteLokiStatefulSet()
-	if err != nil {
-		t.Errorf("UnmountConfigMapFromStatefulSet() setup error = %v", err)
-		return
-	}
-
-	lokiStatefulSetInstance, err := createLokiStatefulset()
-	if err != nil {
-		t.Errorf(":UnmountConfigMapFromStatefulSet() setup error = %v", err)
-		return
-	}
-
-	err = MountConfigMap(k8sClient, configMap, "/var/loki", lokiStatefulSetInstance, Options{})
-	if err != nil {
-		t.Errorf("UnmountConfigMapFromStatefulSet() setup error = %v", err)
-		return
-	}
-
-	err = UnmountConfigMapFromStatefulSet(k8sClient, configMap.Name, lokiStatefulSetInstance, Options{})
-	if err != nil {
-		t.Errorf("UnmountConfigMapFromStatefulSet() error = %v", err)
-		return
-	}
-
-	clearSingletons()
-	lokiStatefulSetInstance, err = GetLokiStatefulSetInstance(k8sClient, &metav1.LabelSelector{MatchLabels: lokiStatefulSetInstance.Labels}, NAMESPACE, Options{})
-	if err != nil {
-		t.Errorf("UnmountConfigMapFromStatefulSet() setup error = %v", err)
-		return
-	}
-
-	lokiStatefulSetInstanceVolumeMounts := lokiStatefulSetInstance.Spec.Template.Spec.Containers[0].VolumeMounts
-	lokiStatefulSetInstanceVolumes := lokiStatefulSetInstance.Spec.Template.Spec.Volumes
-
-	if len(lokiStatefulSetInstanceVolumeMounts) != 0 {
-		t.Errorf("UnmountConfigMapFromStatefulSet() error = Expected 0 volume mounts, got %d", len(lokiStatefulSetInstanceVolumeMounts))
-		return
-	}
-
-	if len(lokiStatefulSetInstanceVolumes) != 0 {
-		t.Errorf("UnmountConfigMapFromStatefulSet() error = Expected 0 volumes, got %d", len(lokiStatefulSetInstanceVolumes))
-		return
-	}
-}
-
-func clearSingletons() {
-	LOKI_STATEFUL_SET_INSTANCE = nil
-}
-
-func createLokiStatefulset() (*appsv1.StatefulSet, error) {
+func createStatefulSet() (*appsv1.StatefulSet, error) {
 	labels := map[string]string{
 		"app.kubernetes.io/name": "loki",
 	}
@@ -375,7 +301,7 @@ func createLokiStatefulset() (*appsv1.StatefulSet, error) {
 	return lokiStatefulSet, nil
 }
 
-func deleteLokiStatefulSet() (noop bool, returnErr error) {
+func deleteStatefulSet() (noop bool, returnErr error) {
 	lokiStatefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "loki",

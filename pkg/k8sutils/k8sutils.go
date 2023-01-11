@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	"github.com/go-kit/log"
 
@@ -114,7 +113,8 @@ func generateVolumeMounts(
 	return volume, volumeMount
 }
 
-func getLokiStatefulset(cli client.Client, labelSelector *metav1.LabelSelector, namespace string, args Options) (*appsv1.StatefulSet, error) {
+func GetStatefulSet(cli client.Client, labelSelector *metav1.LabelSelector, namespace string, args Options) (*appsv1.StatefulSet, error) {
+	args = sanitizeOptions(args)
 	ctx, logger := args.Ctx, args.Logger
 
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
@@ -146,36 +146,6 @@ func getLokiStatefulset(cli client.Client, labelSelector *metav1.LabelSelector, 
 	}
 
 	return &statefulSets.Items[0], nil
-}
-
-var LOCK = &sync.Mutex{}
-var LOKI_STATEFUL_SET_INSTANCE *appsv1.StatefulSet
-
-func GetLokiStatefulSetInstance(cli client.Client, labelSelector *metav1.LabelSelector, namespace string, args Options) (*appsv1.StatefulSet, error) {
-	options := sanitizeOptions(args)
-	logger := options.Logger
-
-	var err error
-
-	if LOKI_STATEFUL_SET_INSTANCE == nil {
-		LOCK.Lock()
-		defer LOCK.Unlock()
-		if LOKI_STATEFUL_SET_INSTANCE == nil {
-			logger.Log("msg", "Fetching loki instance.")
-			LOKI_STATEFUL_SET_INSTANCE, err = getLokiStatefulset(
-				cli,
-				labelSelector,
-				namespace,
-				options,
-			)
-		} else {
-			logger.Log("Loki instance found.")
-		}
-	} else {
-		logger.Log("Loki instance found.")
-	}
-
-	return LOKI_STATEFUL_SET_INSTANCE, err
 }
 
 func CreateOrUpdateConfigMap(
@@ -215,7 +185,7 @@ func MountConfigMap(
 	cli client.Client,
 	configMap *corev1.ConfigMap,
 	mountPath string,
-	lokiStatefulset *appsv1.StatefulSet,
+	lokiStatefulSet *appsv1.StatefulSet,
 	args Options,
 ) error {
 	args = sanitizeOptions(args)
@@ -231,31 +201,31 @@ func MountConfigMap(
 		return err
 	}
 
-	if lokiStatefulset.Spec.Template.Annotations == nil {
-		lokiStatefulset.Spec.Template.Annotations = make(map[string]string)
+	if lokiStatefulSet.Spec.Template.Annotations == nil {
+		lokiStatefulSet.Spec.Template.Annotations = make(map[string]string)
 	}
 
-	lokiStatefulset.Spec.Template.Annotations[configMapAnnotationName] = configMapHash
+	lokiStatefulSet.Spec.Template.Annotations[configMapAnnotationName] = configMapHash
 
-	if !volumeExists(volume.Name, lokiStatefulset) && !volumeIsMounted(volume.Name, lokiStatefulset) {
-		lokiStatefulset.Spec.Template.Spec.Volumes = append(lokiStatefulset.Spec.Template.Spec.Volumes, volume)
+	if !volumeExists(volume.Name, lokiStatefulSet) && !volumeIsMounted(volume.Name, lokiStatefulSet) {
+		lokiStatefulSet.Spec.Template.Spec.Volumes = append(lokiStatefulSet.Spec.Template.Spec.Volumes, volume)
 
-		lokiStatefulset.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-			lokiStatefulset.Spec.Template.Spec.Containers[0].VolumeMounts,
+		lokiStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+			lokiStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts,
 			volumeMount,
 		)
 	}
 
-	err = cli.Patch(ctx, lokiStatefulset, client.Merge)
+	err = cli.Patch(ctx, lokiStatefulSet, client.Merge)
 	if err != nil {
-		log.Log("msg", "failed to patch statefulset", "statefulset", lokiStatefulset.Name, "err", err)
+		log.Log("msg", "failed to patch statefulSet", "statefulSet", lokiStatefulSet.Name, "err", err)
 		return err
 	}
 
 	return nil
 }
 
-func UnmountConfigMapFromStatefulSet(
+func UnmountConfigMap(
 	cli client.Client,
 	configMapName string,
 	statefulSet *appsv1.StatefulSet,

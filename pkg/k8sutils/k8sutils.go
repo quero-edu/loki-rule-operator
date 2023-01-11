@@ -181,6 +181,25 @@ func CreateOrUpdateConfigMap(
 	return configMap, cli.Update(ctx, configMap)
 }
 
+func DeleteConfigMap(cli client.Client, configMapName string, configMapNameSpace string, args Options) error {
+	args = sanitizeOptions(args)
+	ctx, log := args.Ctx, args.Logger
+
+	configMap := &corev1.ConfigMap{}
+	err := cli.Get(ctx, types.NamespacedName{
+		Name:      configMapName,
+		Namespace: configMapNameSpace,
+	}, configMap)
+
+	if err != nil {
+		log.Log("msg", "failed to get configmap", "err", err)
+		return err
+	}
+
+	log.Log("msg", "Deleting ConfigMap", "ConfigMap.Namespace", configMap.Namespace, "ConfigMap.Name", configMap.Name)
+	return cli.Delete(ctx, configMap)
+}
+
 func MountConfigMap(
 	cli client.Client,
 	configMap *corev1.ConfigMap,

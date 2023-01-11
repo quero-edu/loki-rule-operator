@@ -118,6 +118,18 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 				level.Error(r.Logger).Log("err", err, "msg", "Failed to unmount configMap from deployments")
 			}
 
+			level.Debug(r.Logger).Log("msg", "Deleting configMap")
+
+			err = k8sutils.DeleteConfigMap(
+				r.Client,
+				deletedInstance.Spec.Name,
+				deletedInstance.Namespace,
+				k8sutils.Options{Ctx: context.Background(), Logger: level.Debug(r.Logger)},
+			)
+			if err != nil {
+				level.Error(r.Logger).Log("err", err, "msg", "Failed to delete configMap")
+			}
+
 			level.Info(r.Logger).Log("msg", "deleted LokiRule reconciled")
 
 			return false

@@ -104,6 +104,37 @@ var _ = Describe("K8sutils", func() {
 		})
 	})
 
+	Describe("TestDeleteConfigMap", func() {
+		It("should delete the ConfigMap", func() {
+			configMapName := "test-configmap-delete"
+			configMapData := map[string]string{"foo": "bar"}
+			configMapLabels := map[string]string{"lfoo": "lbar"}
+
+			configMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: NAMESPACE,
+					Labels:    configMapLabels,
+				},
+				Data: configMapData,
+			}
+
+			err := k8sClient.Create(context.TODO(), configMap)
+			Expect(err).To(BeNil())
+
+			err = DeleteConfigMap(k8sClient, configMapName, NAMESPACE, Options{})
+			Expect(err).To(BeNil())
+
+			configMap = &corev1.ConfigMap{}
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{
+				Name:      configMapName,
+				Namespace: NAMESPACE,
+			}, configMap)
+
+			Expect(errors.IsNotFound(err)).To(BeTrue())
+		})
+	})
+
 	Describe("TestGetStatefulSet", func() {
 		var statefulSet *appsv1.StatefulSet
 		var err error

@@ -15,6 +15,7 @@ import (
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -99,7 +100,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = Describe("LokiRuleController", func() {
-	Describe("Reconcile Create", func() {
+	Describe("Reconcile", func() {
 		Context("When a LokiRule is created", func() {
 			BeforeEach(func() {
 				lokiRule := &querocomv1alpha1.LokiRule{
@@ -200,6 +201,79 @@ var _ = Describe("LokiRuleController", func() {
 					return true
 				}, timeout, interval).Should(BeTrue())
 			})
+		})
+
+		Context("When a LokiRule is deleted", func() {
+			BeforeEach(func() {
+				lokiRule := &querocomv1alpha1.LokiRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-lokirule",
+						Namespace: namespaceName,
+					},
+					Spec: querocomv1alpha1.LokiRuleSpec{
+						Name: "test-lokirule-config-delete",
+						Data: map[string]string{
+							"test": "test",
+						},
+					},
+				}
+				err := k8sClient.Create(context.TODO(), lokiRule)
+				Expect(err).To(BeNil())
+
+				lokiRule = &querocomv1alpha1.LokiRule{}
+				err = k8sClient.Get(context.TODO(), client.ObjectKey{
+					Name:      "test-lokirule",
+					Namespace: namespaceName,
+				}, lokiRule)
+
+				Expect(err).To(BeNil())
+
+				err = k8sClient.Delete(context.TODO(), lokiRule)
+				Expect(err).To(BeNil())
+			})
+
+			It("Should delete the configMap", func() {
+				configMap := &corev1.ConfigMap{}
+
+				Eventually(func() bool {
+					err := k8sClient.Get(context.TODO(), client.ObjectKey{
+						Name:      "test-lokirule-config-delete",
+						Namespace: namespaceName,
+					}, configMap)
+					if err != nil {
+						if errors.IsNotFound(err) {
+							return true
+						}
+						GinkgoWriter.Println("Error getting configMap, %v", err)
+						return false
+					}
+					GinkgoWriter.Println("ConfigMap still exists")
+					return false
+				}, timeout, interval).Should(BeTrue())
+			})
+
+			It("Should delete the volume", func() {
+				resultStatefulSet := &appsv1.StatefulSet{}
+				Eventually(func() bool {
+					err := k8sClient.Get(context.TODO(), client.ObjectKey{
+						Name:      lokiStatefulSet.Name,
+						Namespace: namespaceName,
+					}, resultStatefulSet)
+					if err != nil {
+						GinkgoWriter.Println("Error getting statefulSet, %v", err)
+						return false
+					}
+
+					if len(resultStatefulSet.Spec.Template.Spec.Volumes) == 0 &&
+						len(resultStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts) == 0 {
+						return true
+					}
+
+					GinkgoWriter.Println("Volume still exists")
+					return false
+				}, timeout, interval).Should(BeTrue())
+			})
+
 		})
 	})
 })

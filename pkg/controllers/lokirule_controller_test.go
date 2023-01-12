@@ -11,8 +11,8 @@ import (
 
 	"testing"
 
-	"github.com/go-kit/log"
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -57,14 +57,6 @@ var _ = BeforeSuite(func() {
 
 	Expect(err).ToNot(HaveOccurred())
 
-	namespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: namespaceName,
-		},
-	}
-
-	k8sClient.Create(context.TODO(), namespace)
-
 	labels := map[string]string{
 		"app": "loki",
 	}
@@ -80,7 +72,7 @@ var _ = BeforeSuite(func() {
 	lokiRuleReconcilerInstance = &LokiRuleReconciler{
 		Client:                  k8sClient,
 		Scheme:                  testEnv.Scheme,
-		Logger:                  log.NewNopLogger(),
+		Logger:                  logger.NewNopLogger(),
 		LokiStatefulSetInstance: lokiStatefulSet,
 		LokiRulesPath:           lokiRuleMountPath,
 	}
@@ -102,6 +94,8 @@ var _ = BeforeSuite(func() {
 var _ = Describe("LokiRuleController", func() {
 	Describe("Reconcile", func() {
 		Context("When a LokiRule is created", func() {
+			const cfgMapName = "test-lokirule"
+
 			BeforeEach(func() {
 				lokiRule := &querocomv1alpha1.LokiRule{
 					ObjectMeta: metav1.ObjectMeta{
@@ -109,7 +103,7 @@ var _ = Describe("LokiRuleController", func() {
 						Namespace: namespaceName,
 					},
 					Spec: querocomv1alpha1.LokiRuleSpec{
-						Name: "test-lokirule-config",
+						Name: cfgMapName,
 						Data: map[string]string{
 							"test": "test",
 						},
@@ -137,7 +131,7 @@ var _ = Describe("LokiRuleController", func() {
 
 				Eventually(func() bool {
 					err := k8sClient.Get(context.TODO(), client.ObjectKey{
-						Name:      "test-lokirule-config",
+						Name:      cfgMapName,
 						Namespace: namespaceName,
 					}, configMap)
 					if err != nil {
@@ -155,7 +149,7 @@ var _ = Describe("LokiRuleController", func() {
 			})
 
 			It("Should mount the configMap and annotate the statefulset", func() {
-				expectedVolumeName := fmt.Sprintf("%s-volume", "test-lokirule-config")
+				expectedVolumeName := fmt.Sprintf("%s-volume", cfgMapName)
 				resultStatefulSet := &appsv1.StatefulSet{}
 
 				Eventually(func() bool {
@@ -194,14 +188,14 @@ var _ = Describe("LokiRuleController", func() {
 						return false
 					}
 
-					if resultStatefulSet.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.Name != "test-lokirule-config" {
+					if resultStatefulSet.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.Name != cfgMapName {
 						GinkgoWriter.Println("ConfigMap name is not test-lokirule-config")
 						return false
 					}
 
 					// generated from lokirule.data
 					const expectedAnnotationHash = "3e80b3778b3b03766e7be993131c0af2ad05630c5d96fb7fa132d05b77336e04"
-					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", "test-lokirule-config")
+					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", cfgMapName)
 
 					if resultStatefulSet.Spec.Template.Annotations == nil {
 						GinkgoWriter.Println("Annotations is not set")

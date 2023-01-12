@@ -37,18 +37,11 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testEnv.Scheme})
 
 	Expect(err).ToNot(HaveOccurred())
-
-	namespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: NAMESPACE,
-		},
-	}
-
-	k8sClient.Create(context.TODO(), namespace)
 })
 
 var _ = AfterSuite(func() {
-	testEnv.Stop()
+	err := testEnv.Stop()
+	Expect(err).ToNot(HaveOccurred())
 })
 
 var _ = Describe("K8sutils", func() {
@@ -90,7 +83,15 @@ var _ = Describe("K8sutils", func() {
 			Expect(err).To(BeNil())
 
 			newConfigMapData := map[string]string{"baz": "foo"}
-			_, err = CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, newConfigMapData, configMapLabels, Options{})
+			_, err = CreateOrUpdateConfigMap(
+				k8sClient,
+				NAMESPACE,
+				configMapName,
+				newConfigMapData,
+				configMapLabels,
+				Options{},
+			)
+
 			Expect(err).To(BeNil())
 
 			configMap = &corev1.ConfigMap{}
@@ -222,17 +223,25 @@ var _ = Describe("K8sutils", func() {
 			}, updatedStatefulSet)
 			Expect(err).To(BeNil())
 
-			Expect(updatedStatefulSet.Spec.Template.Spec.Volumes[0].Name).To(Equal(fmt.Sprintf("%s-volume", configMapName)))
-			Expect(updatedStatefulSet.Spec.Template.Spec.Volumes[0].ConfigMap.LocalObjectReference.Name).To(Equal(configMapName))
+			Expect(
+				updatedStatefulSet.Spec.Template.Spec.Volumes[0].Name,
+			).To(Equal(fmt.Sprintf("%s-volume", configMapName)))
+			Expect(
+				updatedStatefulSet.Spec.Template.Spec.Volumes[0].ConfigMap.LocalObjectReference.Name,
+			).To(Equal(configMapName))
 
-			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name).To(Equal(fmt.Sprintf("%s-volume", configMapName)))
+			Expect(
+				updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name,
+			).To(Equal(fmt.Sprintf("%s-volume", configMapName)))
 			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath).To(Equal(mountPath))
 
 			// Hashed data using private function in k8sutil
 			const expectedAnnotationHash = "7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b"
 			expectedAnnotationName := fmt.Sprintf("checksum/config-%s", configMapName)
 
-			Expect(updatedStatefulSet.Spec.Template.Annotations).To(HaveKeyWithValue(expectedAnnotationName, expectedAnnotationHash))
+			Expect(
+				updatedStatefulSet.Spec.Template.Annotations,
+			).To(HaveKeyWithValue(expectedAnnotationName, expectedAnnotationHash))
 		})
 	})
 

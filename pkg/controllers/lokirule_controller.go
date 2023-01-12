@@ -19,9 +19,8 @@ package controllers
 import (
 	"context"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	"github.com/quero-edu/loki-rule-operator/pkg/k8sutils"
 	"github.com/quero-edu/loki-rule-operator/pkg/lokirule"
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,7 +37,7 @@ import (
 type LokiRuleReconciler struct {
 	client.Client
 	Scheme                  *runtime.Scheme
-	Logger                  log.Logger
+	Logger                  logger.Logger
 	LokiRulesPath           string
 	LokiStatefulSetInstance *appsv1.StatefulSet
 }
@@ -49,9 +48,9 @@ type LokiRuleReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	options := k8sutils.Options{Ctx: ctx, Logger: level.Debug(r.Logger)}
+	options := k8sutils.Options{Ctx: ctx, Logger: r.Logger}
 
-	level.Info(r.Logger).Log("msg", "Reconciling LokiRule", "namespace", req.NamespacedName)
+	r.Logger.Info("Reconciling LokiRule", "namespace", req.NamespacedName)
 
 	instance := &querocomv1alpha1.LokiRule{}
 	err := r.Get(ctx, req.NamespacedName, instance)
@@ -70,11 +69,15 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		options,
 	)
 	if err != nil {
-		level.Error(r.Logger).Log("err", err, "msg", "Failed to ensure configMap exists")
+		r.Logger.Error(err, "Failed to ensure configMap exists")
 		return reconcile.Result{}, err
 	}
 
-	controllerutil.SetControllerReference(instance, configMap, r.Scheme)
+	err = controllerutil.SetControllerReference(instance, configMap, r.Scheme)
+	if err != nil {
+		r.Logger.Error(err, "Failed to set controller reference")
+		return reconcile.Result{}, err
+	}
 
 	err = k8sutils.MountConfigMap(
 		r.Client,
@@ -84,11 +87,11 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		options,
 	)
 	if err != nil {
-		level.Error(r.Logger).Log("err", err, "msg", "ConfigMap not attached")
+		r.Logger.Error(err, "ConfigMap not attached")
 		return reconcile.Result{}, err
 	}
 
-	level.Info(r.Logger).Log("msg", "LokiRule Reconciled")
+	r.Logger.Info("LokiRule Reconciled")
 
 	return ctrl.Result{}, nil
 }
@@ -104,33 +107,39 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			deletedInstance := e.Object.(*querocomv1alpha1.LokiRule)
 
-			level.Info(r.Logger).Log("msg", "Reconciling deleted LokiRule", "namespace", deletedInstance.Namespace, "name", deletedInstance.Name)
+			r.Logger.Info(
+				"Reconciling deleted LokiRule",
+				"namespace",
+				deletedInstance.Namespace,
+				"name",
+				deletedInstance.Name,
+			)
 
-			level.Debug(r.Logger).Log("msg", "Unmounting configMap from loki statefulSet")
+			r.Logger.Info("Unmounting configMap from loki statefulSet")
 			err := k8sutils.UnmountConfigMap(
 				r.Client,
 				deletedInstance.Spec.Name,
 				r.LokiStatefulSetInstance,
-				k8sutils.Options{Ctx: context.Background(), Logger: level.Debug(r.Logger)},
+				k8sutils.Options{Ctx: context.Background(), Logger: r.Logger},
 			)
 
 			if err != nil {
-				level.Error(r.Logger).Log("err", err, "msg", "Failed to unmount configMap from deployments")
+				r.Logger.Error(err, "Failed to unmount configMap from deployments")
 			}
 
-			level.Debug(r.Logger).Log("msg", "Deleting configMap")
+			r.Logger.Info("Deleting configMap")
 
 			err = k8sutils.DeleteConfigMap(
 				r.Client,
 				deletedInstance.Spec.Name,
 				deletedInstance.Namespace,
-				k8sutils.Options{Ctx: context.Background(), Logger: level.Debug(r.Logger)},
+				k8sutils.Options{Ctx: context.Background(), Logger: r.Logger},
 			)
 			if err != nil {
-				level.Error(r.Logger).Log("err", err, "msg", "Failed to delete configMap")
+				r.Logger.Error(err, "Failed to delete configMap")
 			}
 
-			level.Info(r.Logger).Log("msg", "deleted LokiRule reconciled")
+			r.Logger.Info("deleted LokiRule reconciled")
 
 			return false
 		},

@@ -6,8 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/go-kit/log"
-
+	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,13 +16,13 @@ import (
 )
 
 type Options struct {
-	Logger log.Logger
+	Logger logger.Logger
 	Ctx    context.Context
 }
 
 func sanitizeOptions(args Options) Options {
 	if args.Logger == nil {
-		args.Logger = log.NewNopLogger()
+		args.Logger = logger.NewNopLogger()
 	}
 
 	if args.Ctx == nil {
@@ -113,13 +112,18 @@ func generateVolumeMounts(
 	return volume, volumeMount
 }
 
-func GetStatefulSet(cli client.Client, labelSelector *metav1.LabelSelector, namespace string, args Options) (*appsv1.StatefulSet, error) {
+func GetStatefulSet(
+	cli client.Client,
+	labelSelector *metav1.LabelSelector,
+	namespace string,
+	args Options,
+) (*appsv1.StatefulSet, error) {
 	args = sanitizeOptions(args)
-	ctx, logger := args.Ctx, args.Logger
+	ctx, log := args.Ctx, args.Logger
 
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
 	if err != nil {
-		logger.Log("msg", "failed to convert label selector to selector", "err", err)
+		log.Debug("failed to convert label selector to selector", "err", err)
 		return nil, err
 	}
 
@@ -131,17 +135,17 @@ func GetStatefulSet(cli client.Client, labelSelector *metav1.LabelSelector, name
 	})
 
 	if err != nil {
-		logger.Log("msg", "failed to list statefulSets", "err", err)
+		log.Debug("failed to list statefulSets", "err", err)
 		return nil, err
 	}
 
 	if len(statefulSets.Items) > 1 {
-		logger.Log("msg", "more than one statefulSet found")
+		log.Debug("more than one statefulSet found")
 		return nil, fmt.Errorf("more than one statefulSet found")
 	}
 
 	if len(statefulSets.Items) == 0 {
-		logger.Log("msg", "no statefulSets found")
+		log.Debug("no statefulSets found")
 		return nil, fmt.Errorf("no statefulSets found")
 	}
 
@@ -171,13 +175,13 @@ func CreateOrUpdateConfigMap(
 	configMap.Labels = labels
 
 	if errors.IsNotFound(err) {
-		log.Log("msg", "Creating a new ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
+		log.Debug("Creating a new ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
 		return configMap, cli.Create(ctx, configMap)
 	} else if err != nil {
 		return nil, err
 	}
 
-	log.Log("msg", "Updating ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
+	log.Debug("Updating ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
 	return configMap, cli.Update(ctx, configMap)
 }
 
@@ -192,11 +196,11 @@ func DeleteConfigMap(cli client.Client, configMapName string, configMapNameSpace
 	}, configMap)
 
 	if err != nil {
-		log.Log("msg", "failed to get configmap", "err", err)
+		log.Debug("failed to get configmap", "err", err)
 		return err
 	}
 
-	log.Log("msg", "Deleting ConfigMap", "ConfigMap.Namespace", configMap.Namespace, "ConfigMap.Name", configMap.Name)
+	log.Debug("Deleting ConfigMap", "ConfigMap.Namespace", configMap.Namespace, "ConfigMap.Name", configMap.Name)
 	return cli.Delete(ctx, configMap)
 }
 
@@ -216,7 +220,7 @@ func MountConfigMap(
 	configMapHash, err := hashConfigMapData(configMap)
 
 	if err != nil {
-		log.Log("msg", "failed to hash configmap data", "err", err)
+		log.Debug("failed to hash configmap data", "err", err)
 		return err
 	}
 
@@ -237,7 +241,7 @@ func MountConfigMap(
 
 	err = cli.Patch(ctx, lokiStatefulSet, client.Merge)
 	if err != nil {
-		log.Log("msg", "failed to patch statefulSet", "statefulSet", lokiStatefulSet.Name, "err", err)
+		log.Debug("failed to patch statefulSet", "statefulSet", lokiStatefulSet.Name, "err", err)
 		return err
 	}
 
@@ -257,7 +261,7 @@ func UnmountConfigMap(
 	configMapAnnotationName := genHashAnnotation(configMapName)
 
 	if !volumeExists(volumeName, statefulSet) && !volumeIsMounted(volumeName, statefulSet) {
-		log.Log("msg", "volume does not exist in statefulSet", "statefulSet", statefulSet.Name)
+		log.Debug("volume does not exist in statefulSet", "statefulSet", statefulSet.Name)
 		return nil
 	}
 
@@ -271,7 +275,7 @@ func UnmountConfigMap(
 
 	err := cli.Update(ctx, statefulSet)
 	if err != nil {
-		log.Log("msg", "failed to update statefulSet", "statefulSet", statefulSet.Name, "err", err)
+		log.Debug("failed to update statefulSet", "statefulSet", statefulSet.Name, "err", err)
 		return err
 	}
 

@@ -3,6 +3,18 @@ name: Go test
 on: [push]
 
 jobs:
+  go-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: -c .golangci.yml 
   go-test:
     runs-on: ubuntu-latest
     steps:

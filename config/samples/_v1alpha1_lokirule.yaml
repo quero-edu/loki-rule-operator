@@ -11,10 +11,6 @@ metadata:
   name: lokirule-sample-2
 spec:
   name: lokirule-sample
-  selector:
-    matchLabels:
-      app: nginx
-  mountPath: /tmp
   data:
     test: |-
       Update test

@@ -21,10 +21,6 @@ metadata:
   name: lokirule-sample
 spec:
   name: sample-cfg # generated config map name
-  selector: # loki ruler deployment selector labels
-    matchLabels:
-      app: loki
-  mountPath: /tmp # loki ruler deployment mountpath
   data:
     test: |-
       Update test

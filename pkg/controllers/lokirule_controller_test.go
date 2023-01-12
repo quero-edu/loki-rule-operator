@@ -4,191 +4,316 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"testing"
+	"time"
 
-	"k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"testing"
 
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
-	"github.com/quero-edu/loki-rule-operator/internal/log"
-	//+kubebuilder:scaffold:imports
+	"github.com/quero-edu/loki-rule-operator/internal/logger"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gexec"
 )
+
+func TestLokiRuleController(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "LokiRuleController Suite")
+}
+
+const timeout = time.Second * 1
+const interval = time.Millisecond * 250
+
+const lokiRuleMountPath = "/etc/loki/rules"
+const namespaceName = "default"
 
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
-var lokiRuleReconciler *LokiRuleReconciler
+var lokiStatefulSet *appsv1.StatefulSet
+var lokiRuleReconcilerInstance *LokiRuleReconciler
 
-const NAMESPACE = "default"
-
-func TestMain(m *testing.M) {
+var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 	}
 
 	cfg, err := testEnv.Start()
-	if err != nil {
-		panic(err)
-	}
+	Expect(err).ToNot(HaveOccurred())
 
-	err = querocomv1alpha1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		panic(err)
-	}
+	err = querocomv1alpha1.AddToScheme(testEnv.Scheme)
+	Expect(err).ToNot(HaveOccurred())
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = client.New(cfg, client.Options{Scheme: testEnv.Scheme})
 
-	if err != nil {
-		panic(err)
-	}
-
-	namespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: NAMESPACE,
-		},
-	}
-
-	k8sClient.Create(context.TODO(), namespace)
-
-	lokiRuleReconciler = &LokiRuleReconciler{
-		Client: k8sClient,
-		Scheme: scheme.Scheme,
-		Logger: log.NewLogger("all"),
-	}
-
-	m.Run()
-
-	testEnv.Stop()
-}
-
-func TestReconcile(t *testing.T) {
-	const configMapName = "test-lokirule-config"
-	const deploymentName = "test-lokirule-deployment"
-	const mountPath = "/etc/lokiRule"
+	Expect(err).ToNot(HaveOccurred())
 
 	labels := map[string]string{
-		"app": "test",
+		"app": "loki",
 	}
 
-	lokiRule := &querocomv1alpha1.LokiRule{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-lokirule",
-			Namespace: NAMESPACE,
-		},
-		Spec: querocomv1alpha1.LokiRuleSpec{
-			Name: configMapName,
-			Selector: metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			MountPath: mountPath,
-			Data: map[string]string{
-				"test": "test",
-			},
-		},
+	lokiStatefulSet, err = createStatefulSet(k8sClient, namespaceName, labels)
+	Expect(err).ToNot(HaveOccurred())
+
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: testEnv.Scheme,
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	selector := &metav1.LabelSelector{
+		MatchLabels: labels,
 	}
 
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: NAMESPACE,
-			Labels:    labels,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "test-container",
-							Image: "test-image",
+	lokiRuleReconcilerInstance = &LokiRuleReconciler{
+		Client:            k8sClient,
+		Scheme:            testEnv.Scheme,
+		Logger:            logger.NewNopLogger(),
+		LokiRulesPath:     lokiRuleMountPath,
+		LokiLabelSelector: selector,
+		LokiNamespace:     namespaceName,
+	}
+
+	err = (lokiRuleReconcilerInstance).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred())
+
+	go func() {
+		defer GinkgoRecover()
+		err = mgr.Start(ctrl.SetupSignalHandler())
+		Expect(err).ToNot(HaveOccurred())
+
+		gexec.KillAndWait(4 * time.Second)
+		err := testEnv.Stop()
+		Expect(err).ToNot(HaveOccurred())
+	}()
+})
+
+var _ = Describe("LokiRuleController", func() {
+	Describe("Reconcile", func() {
+		Context("When a LokiRule is created", func() {
+			const cfgMapName = "test-lokirule"
+
+			BeforeEach(func() {
+				lokiRule := &querocomv1alpha1.LokiRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-lokirule",
+						Namespace: namespaceName,
+					},
+					Spec: querocomv1alpha1.LokiRuleSpec{
+						Name: cfgMapName,
+						Data: map[string]string{
+							"test": "test",
 						},
 					},
-				},
-			},
-		},
-	}
+				}
+				err := k8sClient.Create(context.TODO(), lokiRule)
+				Expect(err).To(BeNil())
+			})
 
-	err := k8sClient.Create(context.TODO(), deployment)
-	if err != nil {
-		t.Errorf("TestReconcile() Error creating deployment: %v", err)
-		return
-	}
+			AfterEach(func() {
+				lokiRule := &querocomv1alpha1.LokiRule{}
+				err := k8sClient.Get(context.TODO(), client.ObjectKey{
+					Name:      "test-lokirule",
+					Namespace: namespaceName,
+				}, lokiRule)
 
-	err = k8sClient.Create(context.TODO(), lokiRule)
-	if err != nil {
-		t.Errorf("TestReconcile() Error creating lokiRule: %v", err)
-		return
-	}
+				Expect(err).To(BeNil())
 
-	lokiRuleReconciler.Reconcile(context.TODO(), ctrl.Request{
-		NamespacedName: client.ObjectKey{
-			Name:      lokiRule.Name,
-			Namespace: lokiRule.Namespace,
-		},
+				err = k8sClient.Delete(context.TODO(), lokiRule)
+				Expect(err).To(BeNil())
+			})
+
+			It("Should create the configMap", func() {
+				configMap := &corev1.ConfigMap{}
+
+				Eventually(func() bool {
+					err := k8sClient.Get(context.TODO(), client.ObjectKey{
+						Name:      cfgMapName,
+						Namespace: namespaceName,
+					}, configMap)
+					if err != nil {
+						GinkgoWriter.Println("Error getting configMap: %v", err)
+						return false
+					}
+
+					if configMap.Data["test"] != "test" {
+						GinkgoWriter.Println("ConfigMap data is not correct")
+						return false
+					}
+
+					return true
+				}, timeout, interval).Should(BeTrue())
+			})
+
+			It("Should mount the configMap and annotate the statefulset", func() {
+				expectedVolumeName := fmt.Sprintf("%s-volume", cfgMapName)
+				resultStatefulSet := &appsv1.StatefulSet{}
+
+				Eventually(func() bool {
+					err := k8sClient.Get(context.TODO(), client.ObjectKey{
+						Name:      lokiStatefulSet.Name,
+						Namespace: namespaceName,
+					}, resultStatefulSet)
+
+					if err != nil {
+						GinkgoWriter.Println("Error getting statefulset: %v", err)
+						return false
+					}
+
+					if len(resultStatefulSet.Spec.Template.Spec.Volumes) != 1 {
+						GinkgoWriter.Println("Volumes length is not 1")
+						return false
+					}
+
+					if len(resultStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts) != 1 {
+						GinkgoWriter.Println("VolumeMounts length is not 1")
+						return false
+					}
+
+					if resultStatefulSet.Spec.Template.Spec.Volumes[0].Name != expectedVolumeName {
+						GinkgoWriter.Println("Volume name is not %s", expectedVolumeName)
+						return false
+					}
+
+					if resultStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name != expectedVolumeName {
+						GinkgoWriter.Println("VolumeMount name is not %s", expectedVolumeName)
+						return false
+					}
+
+					if resultStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath != lokiRuleMountPath {
+						GinkgoWriter.Println("VolumeMount path is not %s", lokiRuleMountPath)
+						return false
+					}
+
+					if resultStatefulSet.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.Name != cfgMapName {
+						GinkgoWriter.Println("ConfigMap name is not test-lokirule-config")
+						return false
+					}
+
+					// generated from lokirule.data
+					const expectedAnnotationHash = "3e80b3778b3b03766e7be993131c0af2ad05630c5d96fb7fa132d05b77336e04"
+					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", cfgMapName)
+
+					if resultStatefulSet.Spec.Template.Annotations == nil {
+						GinkgoWriter.Println("Annotations is not set")
+						return false
+					} else if resultStatefulSet.Spec.Template.Annotations[expectedAnnotationName] != expectedAnnotationHash {
+						GinkgoWriter.Printf(
+							"\nAnnotation is incorrect\n\texpected: %v\n\tgot annotations: %v",
+							map[string]string{expectedAnnotationName: expectedAnnotationHash},
+							resultStatefulSet.Spec.Template.Annotations,
+						)
+						return false
+					}
+
+					return true
+				}, timeout, interval).Should(BeTrue())
+			})
+		})
+
+		Context("When a LokiRule is deleted", func() {
+			BeforeEach(func() {
+				lokiRule := &querocomv1alpha1.LokiRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-lokirule",
+						Namespace: namespaceName,
+					},
+					Spec: querocomv1alpha1.LokiRuleSpec{
+						Name: "test-lokirule-config-delete",
+						Data: map[string]string{
+							"test": "test",
+						},
+					},
+				}
+				err := k8sClient.Create(context.TODO(), lokiRule)
+				Expect(err).To(BeNil())
+
+				lokiRule = &querocomv1alpha1.LokiRule{}
+				err = k8sClient.Get(context.TODO(), client.ObjectKey{
+					Name:      "test-lokirule",
+					Namespace: namespaceName,
+				}, lokiRule)
+
+				Expect(err).To(BeNil())
+
+				err = k8sClient.Delete(context.TODO(), lokiRule)
+				Expect(err).To(BeNil())
+			})
+
+			It("Should delete the configMap", func() {
+				configMap := &corev1.ConfigMap{}
+
+				Eventually(func() bool {
+					err := k8sClient.Get(context.TODO(), client.ObjectKey{
+						Name:      "test-lokirule-config-delete",
+						Namespace: namespaceName,
+					}, configMap)
+					if err != nil {
+						if errors.IsNotFound(err) {
+							return true
+						}
+						GinkgoWriter.Println("Error getting configMap, %v", err)
+						return false
+					}
+					GinkgoWriter.Println("ConfigMap still exists")
+					return false
+				}, timeout, interval).Should(BeTrue())
+			})
+
+			It("Should delete the volume and annotations", func() {
+				resultStatefulSet := &appsv1.StatefulSet{}
+				Eventually(func() bool {
+					err := k8sClient.Get(context.TODO(), client.ObjectKey{
+						Name:      lokiStatefulSet.Name,
+						Namespace: namespaceName,
+					}, resultStatefulSet)
+					if err != nil {
+						GinkgoWriter.Println("Error getting statefulSet, %v", err)
+						return false
+					}
+
+					if len(resultStatefulSet.Spec.Template.Spec.Volumes) == 0 &&
+						len(resultStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts) == 0 &&
+						len(resultStatefulSet.Spec.Template.Annotations) == 0 {
+						return true
+					}
+
+					GinkgoWriter.Println("Volume still exists")
+					return false
+				}, timeout, interval).Should(BeTrue())
+			})
+
+		})
 	})
+})
 
-	configMap := &corev1.ConfigMap{}
-	err = k8sClient.Get(context.TODO(), client.ObjectKey{
-		Name:      configMapName,
-		Namespace: NAMESPACE,
-	}, configMap)
+func createStatefulSet(k8sClient client.Client, namespace string, labels map[string]string) (*appsv1.StatefulSet, error) {
+	lokiStatefulSet := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "loki",
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: labels},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: labels},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "loki", Image: "grafana/loki:2.2.1"}}}},
+		},
+	}
 
+	err := k8sClient.Create(context.TODO(), lokiStatefulSet)
 	if err != nil {
-		t.Errorf("TestReconcile() Error getting configMap: %v", err)
-		return
+		return nil, err
 	}
 
-	if configMap.Data["test"] != "test" {
-		t.Errorf("TestReconcile() Assertion failed: ConfigMap data is not equal to lokiRule data")
-		return
-	}
-
-	deployment = &appsv1.Deployment{}
-	err = k8sClient.Get(context.TODO(), client.ObjectKey{
-		Name:      deploymentName,
-		Namespace: NAMESPACE,
-	}, deployment)
-	if err != nil {
-		t.Errorf("TestReconcile() Error getting deployment: %v", err)
-		return
-	}
-
-	expectedVolumeName := fmt.Sprintf("%s-volume", configMapName)
-
-	if len(deployment.Spec.Template.Spec.Volumes) != 1 {
-		t.Errorf("TestReconcile() Assertion failed: Deployment volumes length is not equal to 1")
-		return
-	}
-
-	if deployment.Spec.Template.Spec.Volumes[0].Name != expectedVolumeName {
-		t.Errorf("TestReconcile() Assertion failed: Deployment volume name is not equal to configMap name")
-		return
-	}
-
-	if len(deployment.Spec.Template.Spec.Containers[0].VolumeMounts) != 1 {
-		t.Errorf("TestReconcile() Assertion failed: Deployment volume mounts length is not equal to 1")
-		return
-	}
-
-	if deployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name != expectedVolumeName {
-		t.Errorf("TestReconcile() Assertion failed: Deployment volume mount name is not equal to configMap name")
-		return
-	}
-
-	if deployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath != mountPath {
-		t.Errorf("TestReconcile() Assertion failed: Deployment volume mount path is not equal to lokiRule mount path")
-		return
-	}
+	return lokiStatefulSet, nil
 }

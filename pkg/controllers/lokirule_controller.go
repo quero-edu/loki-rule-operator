@@ -89,6 +89,9 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 				r.LokiNamespace,
 				r.Logger,
 			)
+			if err != nil {
+				r.Logger.Error(err, "Failed to get Loki statefulSet")
+			}
 
 			r.Logger.Info("Unmounting configMap from loki statefulSet")
 			err = k8sutils.UnmountConfigMap(

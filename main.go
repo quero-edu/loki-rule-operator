@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -26,14 +25,11 @@ import (
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	"github.com/quero-edu/loki-rule-operator/pkg/controllers"
-	"github.com/quero-edu/loki-rule-operator/pkg/k8sutils"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 )
 
@@ -144,18 +140,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	lokiStatefulSet, err := getLokiStatefulSet(mgr.GetClient(), lokiSelector, lokiNamespace, log)
-	if err != nil {
-		log.Error(err, "unable to get loki statefulSet")
-		os.Exit(1)
-	}
-
 	if err = (&controllers.LokiRuleReconciler{
-		Client:                  mgr.GetClient(),
-		Scheme:                  mgr.GetScheme(),
-		Logger:                  log,
-		LokiRulesPath:           lokiRuleMountPath,
-		LokiStatefulSetInstance: lokiStatefulSet,
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		Logger:            log,
+		LokiRulesPath:     lokiRuleMountPath,
+		LokiLabelSelector: lokiSelector,
+		LokiNamespace:     lokiNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		log.Error(err, "unable to create controller", "controller", "LokiRule")
 		os.Exit(1)
@@ -175,24 +166,4 @@ func main() {
 		log.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-}
-
-func getLokiStatefulSet(
-	client client.Client,
-	labelSelector *metav1.LabelSelector,
-	namespace string,
-	logger logger.Logger,
-) (*appsv1.StatefulSet, error) {
-	statefulSet, err := k8sutils.GetStatefulSet(
-		client,
-		labelSelector,
-		namespace,
-		k8sutils.Options{Ctx: context.Background(), Logger: logger},
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return statefulSet, nil
 }

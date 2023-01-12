@@ -69,12 +69,17 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	selector := &metav1.LabelSelector{
+		MatchLabels: labels,
+	}
+
 	lokiRuleReconcilerInstance = &LokiRuleReconciler{
-		Client:                  k8sClient,
-		Scheme:                  testEnv.Scheme,
-		Logger:                  logger.NewNopLogger(),
-		LokiStatefulSetInstance: lokiStatefulSet,
-		LokiRulesPath:           lokiRuleMountPath,
+		Client:            k8sClient,
+		Scheme:            testEnv.Scheme,
+		Logger:            logger.NewNopLogger(),
+		LokiRulesPath:     lokiRuleMountPath,
+		LokiLabelSelector: selector,
+		LokiNamespace:     namespaceName,
 	}
 
 	err = (lokiRuleReconcilerInstance).SetupWithManager(mgr)

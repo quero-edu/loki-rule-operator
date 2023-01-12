@@ -154,7 +154,7 @@ var _ = Describe("LokiRuleController", func() {
 				}, timeout, interval).Should(BeTrue())
 			})
 
-			It("Should mount the configMap", func() {
+			It("Should mount the configMap and annotate the statefulset", func() {
 				expectedVolumeName := fmt.Sprintf("%s-volume", "test-lokirule-config")
 				resultStatefulSet := &appsv1.StatefulSet{}
 
@@ -165,6 +165,7 @@ var _ = Describe("LokiRuleController", func() {
 					}, resultStatefulSet)
 
 					if err != nil {
+						GinkgoWriter.Println("Error getting statefulset: %v", err)
 						return false
 					}
 
@@ -195,6 +196,22 @@ var _ = Describe("LokiRuleController", func() {
 
 					if resultStatefulSet.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.Name != "test-lokirule-config" {
 						GinkgoWriter.Println("ConfigMap name is not test-lokirule-config")
+						return false
+					}
+
+					// generated from lokirule.data
+					const expectedAnnotationHash = "3e80b3778b3b03766e7be993131c0af2ad05630c5d96fb7fa132d05b77336e04"
+					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", "test-lokirule-config")
+
+					if resultStatefulSet.Spec.Template.Annotations == nil {
+						GinkgoWriter.Println("Annotations is not set")
+						return false
+					} else if resultStatefulSet.Spec.Template.Annotations[expectedAnnotationName] != expectedAnnotationHash {
+						GinkgoWriter.Printf(
+							"\nAnnotation is incorrect\n\texpected: %v\n\tgot annotations: %v",
+							map[string]string{expectedAnnotationName: expectedAnnotationHash},
+							resultStatefulSet.Spec.Template.Annotations,
+						)
 						return false
 					}
 
@@ -252,7 +269,7 @@ var _ = Describe("LokiRuleController", func() {
 				}, timeout, interval).Should(BeTrue())
 			})
 
-			It("Should delete the volume", func() {
+			It("Should delete the volume and annotations", func() {
 				resultStatefulSet := &appsv1.StatefulSet{}
 				Eventually(func() bool {
 					err := k8sClient.Get(context.TODO(), client.ObjectKey{
@@ -265,7 +282,8 @@ var _ = Describe("LokiRuleController", func() {
 					}
 
 					if len(resultStatefulSet.Spec.Template.Spec.Volumes) == 0 &&
-						len(resultStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts) == 0 {
+						len(resultStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts) == 0 &&
+						len(resultStatefulSet.Spec.Template.Annotations) == 0 {
 						return true
 					}
 

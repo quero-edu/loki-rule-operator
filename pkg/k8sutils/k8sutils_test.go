@@ -227,6 +227,12 @@ var _ = Describe("K8sutils", func() {
 
 			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name).To(Equal(fmt.Sprintf("%s-volume", configMapName)))
 			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath).To(Equal(mountPath))
+
+			// Hashed data using private function in k8sutil
+			const expectedAnnotationHash = "7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b"
+			expectedAnnotationName := fmt.Sprintf("checksum/config-%s", configMapName)
+
+			Expect(updatedStatefulSet.Spec.Template.Annotations).To(HaveKeyWithValue(expectedAnnotationName, expectedAnnotationHash))
 		})
 	})
 
@@ -301,6 +307,7 @@ var _ = Describe("K8sutils", func() {
 
 			Expect(updatedStatefulSet.Spec.Template.Spec.Volumes).To(BeEmpty())
 			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts).To(BeEmpty())
+			Expect(updatedStatefulSet.Spec.Template.Annotations).To(BeEmpty())
 		})
 	})
 })

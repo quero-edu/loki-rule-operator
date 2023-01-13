@@ -32,6 +32,9 @@ spec:
           command:
             - /manager
           args:
+            - -loki-label-selector={{ .Values.lokiRuleOperator.lokiLabelSelector }}
+            - -loki-namespace={{ .Values.lokiRuleOperator.lokiNamespace }}
+            - -loki-rule-mount-path={{ .Values.lokiRuleOperator.lokiRuleMountPath }}
             {{- if .Values.lokiRuleOperator.logLevel }}
             - -log-level={{ .Values.lokiRuleOperator.logLevel }}
             {{- end }}

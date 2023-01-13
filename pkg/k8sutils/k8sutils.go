@@ -6,8 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/go-kit/log"
-
+	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,13 +16,13 @@ import (
 )
 
 type Options struct {
-	Logger log.Logger
+	Logger logger.Logger
 	Ctx    context.Context
 }
 
 func sanitizeOptions(args Options) Options {
 	if args.Logger == nil {
-		args.Logger = log.NewNopLogger()
+		args.Logger = logger.NewNopLogger()
 	}
 
 	if args.Ctx == nil {
@@ -33,36 +32,12 @@ func sanitizeOptions(args Options) Options {
 	return args
 }
 
-func getDeployments(cli client.Client, labelSelector metav1.LabelSelector, args Options) (*appsv1.DeploymentList, error) {
-	ctx, logger := args.Ctx, args.Logger
-
-	selector, err := metav1.LabelSelectorAsSelector(&labelSelector)
-	if err != nil {
-		logger.Log("msg", "failed to convert label selector to selector", "err", err)
-		return nil, err
-	}
-
-	deployments := &appsv1.DeploymentList{}
-
-	err = cli.List(ctx, deployments, &client.ListOptions{
-		LabelSelector: selector,
-		Namespace:     "default",
-	})
-
-	if err != nil {
-		logger.Log("msg", "failed to list deployments", "err", err)
-		return nil, err
-	}
-
-	return deployments, nil
+func genVolumeNameFromConfigMap(configMapName string) string {
+	return fmt.Sprintf("%s-volume", configMapName)
 }
 
-func genVolumeNameFromConfigMap(configMap *corev1.ConfigMap) string {
-	return fmt.Sprintf("%s-volume", configMap.Name)
-}
-
-func genAnnotationNameFromConfigMap(configMap *corev1.ConfigMap) string {
-	return fmt.Sprintf("checksum/config-%s", configMap.Name)
+func genHashAnnotation(configMapName string) string {
+	return fmt.Sprintf("checksum/config-%s", configMapName)
 }
 
 func hashConfigMapData(configMap *corev1.ConfigMap) (string, error) {
@@ -74,8 +49,8 @@ func hashConfigMapData(configMap *corev1.ConfigMap) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }
 
-func volumeExists(volumeName string, deployment appsv1.Deployment) bool {
-	for _, v := range deployment.Spec.Template.Spec.Volumes {
+func volumeExists(volumeName string, lokiStatefulSet *appsv1.StatefulSet) bool {
+	for _, v := range lokiStatefulSet.Spec.Template.Spec.Volumes {
 		if v.Name == volumeName {
 			return true
 		}
@@ -83,8 +58,8 @@ func volumeExists(volumeName string, deployment appsv1.Deployment) bool {
 	return false
 }
 
-func volumeIsMounted(volumeName string, deployment appsv1.Deployment) bool {
-	for _, vm := range deployment.Spec.Template.Spec.Containers[0].VolumeMounts {
+func volumeIsMounted(volumeName string, lokiStatefulSet *appsv1.StatefulSet) bool {
+	for _, vm := range lokiStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts {
 		if vm.Name == volumeName {
 			return true
 		}
@@ -112,65 +87,18 @@ func removeVolumeMountByName(volumeMounts []corev1.VolumeMount, name string) []c
 	return volumeMounts
 }
 
-// CreateOrUpdateConfigMap creates or updates a ConfigMap in a specific namespace.
-func CreateOrUpdateConfigMap(
-	cli client.Client,
-	namespace string,
-	configMap *corev1.ConfigMap,
-	args Options,
-) error {
-	args = sanitizeOptions(args)
-	ctx, log := args.Ctx, args.Logger
-
-	found := &corev1.ConfigMap{}
-	err := cli.Get(ctx, types.NamespacedName{
-		Name:      configMap.Name,
-		Namespace: namespace,
-	}, found)
-
-	if errors.IsNotFound(err) {
-		log.Log("msg", "Creating a new ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMap.Name)
-		return cli.Create(ctx, configMap)
-	} else if err != nil {
-		return err
-	}
-
-	log.Log("msg", "Updating ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMap.Name)
-	return cli.Update(ctx, configMap)
-}
-
-// AttachConfigMapToDeployments attaches a ConfigMap to a Deployment if a volume with the matching generated
-// name does not already exist in the Deployment.
-func MountConfigMapToDeployments(
-	cli client.Client,
-	labelSelector metav1.LabelSelector,
-	namespace string,
+func generateVolumeMounts(
 	mountPath string,
-	configMap *corev1.ConfigMap,
-	args Options,
-) error {
-	args = sanitizeOptions(args)
-	ctx, log := args.Ctx, args.Logger
-
-	deployments, err := getDeployments(cli, labelSelector, args)
-
-	if err != nil {
-		return err
-	}
-
-	if len(deployments.Items) == 0 {
-		log.Log("msg", "no deployments found")
-		return nil
-	}
-
-	volumeName := genVolumeNameFromConfigMap(configMap)
+	configMapName string,
+) (corev1.Volume, corev1.VolumeMount) {
+	volumeName := genVolumeNameFromConfigMap(configMapName)
 
 	volume := corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: configMap.Name,
+					Name: configMapName,
 				},
 			},
 		},
@@ -181,83 +109,174 @@ func MountConfigMapToDeployments(
 		MountPath: mountPath,
 	}
 
-	configMapAnnotationName := genAnnotationNameFromConfigMap(configMap)
-	configMapHash, err := hashConfigMapData(configMap)
+	return volume, volumeMount
+}
+
+func GetStatefulSet(
+	cli client.Client,
+	labelSelector *metav1.LabelSelector,
+	namespace string,
+	args Options,
+) (*appsv1.StatefulSet, error) {
+	args = sanitizeOptions(args)
+	ctx, log := args.Ctx, args.Logger
+
+	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
 	if err != nil {
-		log.Log("msg", "failed to hash configMap data", "err", err)
+		log.Debug("failed to convert label selector to selector", "err", err)
+		return nil, err
+	}
+
+	statefulSets := &appsv1.StatefulSetList{}
+
+	err = cli.List(ctx, statefulSets, &client.ListOptions{
+		LabelSelector: selector,
+		Namespace:     namespace,
+	})
+
+	if err != nil {
+		log.Debug("failed to list statefulSets", "err", err)
+		return nil, err
+	}
+
+	if len(statefulSets.Items) > 1 {
+		log.Debug("more than one statefulSet found")
+		return nil, fmt.Errorf("more than one statefulSet found")
+	}
+
+	if len(statefulSets.Items) == 0 {
+		log.Debug("no statefulSets found")
+		return nil, fmt.Errorf("no statefulSets found")
+	}
+
+	return &statefulSets.Items[0], nil
+}
+
+func CreateOrUpdateConfigMap(
+	cli client.Client,
+	namespace string,
+	configMapName string,
+	configMapData map[string]string,
+	labels map[string]string,
+	args Options,
+) (*corev1.ConfigMap, error) {
+	args = sanitizeOptions(args)
+	ctx, log := args.Ctx, args.Logger
+
+	configMap := &corev1.ConfigMap{}
+	err := cli.Get(ctx, types.NamespacedName{
+		Name:      configMapName,
+		Namespace: namespace,
+	}, configMap)
+
+	configMap.Name = configMapName
+	configMap.Namespace = namespace
+	configMap.Data = configMapData
+	configMap.Labels = labels
+
+	if errors.IsNotFound(err) {
+		log.Debug("Creating a new ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
+		return configMap, cli.Create(ctx, configMap)
+	} else if err != nil {
+		return nil, err
+	}
+
+	log.Debug("Updating ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
+	return configMap, cli.Update(ctx, configMap)
+}
+
+func DeleteConfigMap(cli client.Client, configMapName string, configMapNameSpace string, args Options) error {
+	args = sanitizeOptions(args)
+	ctx, log := args.Ctx, args.Logger
+
+	configMap := &corev1.ConfigMap{}
+	err := cli.Get(ctx, types.NamespacedName{
+		Name:      configMapName,
+		Namespace: configMapNameSpace,
+	}, configMap)
+
+	if err != nil {
+		log.Debug("failed to get configmap", "err", err)
 		return err
 	}
 
-	for _, deployment := range deployments.Items {
-		if deployment.Spec.Template.Annotations == nil {
-			deployment.Spec.Template.Annotations = make(map[string]string)
-		}
-
-		deployment.Spec.Template.Annotations[configMapAnnotationName] = configMapHash
-
-		if !volumeExists(volume.Name, deployment) && !volumeIsMounted(volume.Name, deployment) {
-			deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, volume)
-
-			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-				deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-				volumeMount,
-			)
-		}
-
-		err = cli.Patch(ctx, &deployment, client.Merge)
-		if err != nil {
-			log.Log("msg", "failed to patch deployment", "deployment", deployment.Name, "err", err)
-			return err
-		}
-	}
-
-	return nil
+	log.Debug("Deleting ConfigMap", "ConfigMap.Namespace", configMap.Namespace, "ConfigMap.Name", configMap.Name)
+	return cli.Delete(ctx, configMap)
 }
 
-// DetachConfigMapFromDeployments detaches a ConfigMap from a Deployment if a volume with the matching generated
-// name exists in the Deployment.
-func UnmountConfigMapFromDeployments(
+func MountConfigMap(
 	cli client.Client,
 	configMap *corev1.ConfigMap,
-	labelSelector metav1.LabelSelector,
-	namespace string,
+	mountPath string,
+	lokiStatefulSet *appsv1.StatefulSet,
 	args Options,
 ) error {
 	args = sanitizeOptions(args)
 	ctx, log := args.Ctx, args.Logger
 
-	deployments, err := getDeployments(cli, labelSelector, args)
+	volume, volumeMount := generateVolumeMounts(mountPath, configMap.Name)
+
+	configMapAnnotationName := genHashAnnotation(configMap.Name)
+	configMapHash, err := hashConfigMapData(configMap)
+
 	if err != nil {
+		log.Debug("failed to hash configmap data", "err", err)
 		return err
 	}
 
-	if len(deployments.Items) == 0 {
-		log.Log("msg", "no deployments found")
+	if lokiStatefulSet.Spec.Template.Annotations == nil {
+		lokiStatefulSet.Spec.Template.Annotations = make(map[string]string)
+	}
+
+	lokiStatefulSet.Spec.Template.Annotations[configMapAnnotationName] = configMapHash
+
+	if !volumeExists(volume.Name, lokiStatefulSet) && !volumeIsMounted(volume.Name, lokiStatefulSet) {
+		lokiStatefulSet.Spec.Template.Spec.Volumes = append(lokiStatefulSet.Spec.Template.Spec.Volumes, volume)
+
+		lokiStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+			lokiStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts,
+			volumeMount,
+		)
+	}
+
+	err = cli.Patch(ctx, lokiStatefulSet, client.Merge)
+	if err != nil {
+		log.Debug("failed to patch statefulSet", "statefulSet", lokiStatefulSet.Name, "err", err)
+		return err
+	}
+
+	return nil
+}
+
+func UnmountConfigMap(
+	cli client.Client,
+	configMapName string,
+	statefulSet *appsv1.StatefulSet,
+	args Options,
+) error {
+	args = sanitizeOptions(args)
+	ctx, log := args.Ctx, args.Logger
+
+	volumeName := genVolumeNameFromConfigMap(configMapName)
+	configMapAnnotationName := genHashAnnotation(configMapName)
+
+	if !volumeExists(volumeName, statefulSet) && !volumeIsMounted(volumeName, statefulSet) {
+		log.Debug("volume does not exist in statefulSet", "statefulSet", statefulSet.Name)
 		return nil
 	}
 
-	volumeName := genVolumeNameFromConfigMap(configMap)
-	configMapAnnotationName := genAnnotationNameFromConfigMap(configMap)
+	statefulSet.Spec.Template.Spec.Volumes = removeVolumeByName(statefulSet.Spec.Template.Spec.Volumes, volumeName)
+	statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts = removeVolumeMountByName(
+		statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts,
+		volumeName,
+	)
 
-	for _, deployment := range deployments.Items {
-		if !volumeExists(volumeName, deployment) && !volumeIsMounted(volumeName, deployment) {
-			log.Log("msg", "volume does not exist in deployment", "deployment", deployment.Name)
-			continue
-		}
+	delete(statefulSet.Spec.Template.Annotations, configMapAnnotationName)
 
-		deployment.Spec.Template.Spec.Volumes = removeVolumeByName(deployment.Spec.Template.Spec.Volumes, volumeName)
-		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = removeVolumeMountByName(
-			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-			volumeName,
-		)
-
-		delete(deployment.Spec.Template.Annotations, configMapAnnotationName)
-
-		err = cli.Update(ctx, &deployment)
-		if err != nil {
-			log.Log("msg", "failed to update deployment", "deployment", deployment.Name, "err", err)
-			return err
-		}
+	err := cli.Update(ctx, statefulSet)
+	if err != nil {
+		log.Debug("failed to update statefulSet", "statefulSet", statefulSet.Name, "err", err)
+		return err
 	}
 
 	return nil

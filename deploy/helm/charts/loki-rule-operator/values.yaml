@@ -29,6 +29,9 @@ tolerations: []
 affinity: {}
 
 lokiRuleOperator:
+  lokiLabelSelector: "app.kubernetes.io/name=loki"
+  lokiNamespace: ""
+  lokiRuleMountPath: "/etc/loki/rules"
   logLevel: info
   metrics:
     port: 8080

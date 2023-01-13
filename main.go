@@ -18,34 +18,23 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"io"
 	"os"
 
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
+	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	"github.com/quero-edu/loki-rule-operator/internal/logger"
+	"github.com/quero-edu/loki-rule-operator/pkg/controllers"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-
-	"github.com/go-kit/log/level"
-	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
-	"github.com/quero-edu/loki-rule-operator/internal/log"
-	"github.com/quero-edu/loki-rule-operator/pkg/controllers"
-	//+kubebuilder:scaffold:imports
 )
 
-var logger = log.NewLogger("all")
-
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = struct {
-		Info  func(keyvals ...interface{}) error
-		Error func(keyvals ...interface{}) error
-	}{
-		Info:  level.Info(logger).Log,
-		Error: level.Error(logger).Log,
-	}
+	scheme = runtime.NewScheme()
 )
 
 func init() {
@@ -55,20 +44,79 @@ func init() {
 }
 
 func main() {
+	var logErrorCallback = func(loggerError error, args ...interface{}) {
+		errorMsg := fmt.Sprintf("Error, could not log: %s, args: %v", loggerError.Error(), args)
+		if _, err := io.Writer(os.Stderr).Write([]byte(errorMsg)); err != nil {
+			os.Exit(1)
+		}
+	}
+
+	var log = logger.NewLogger("all", logErrorCallback)
+
 	var metricsAddr string
 	var probeAddr string
 	var enableLeaderElection bool
 	var leaderElectionNamespace string
-	var leaderElectionId string
+	var leaderElectionID string
 	var logLevel string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "default", "The namespace where the leader election configmap will be created.")
-	flag.StringVar(&leaderElectionId, "leader-election-id", "21ccfc3d.quero.com", "The id used to distinguish between multiple controller manager instances.")
-	flag.StringVar(&logLevel, "log-level", "info", "The log level (debug, info, warn, error, all).")
+	var lokiLabelSelector string
+	var lokiNamespace string
+	var lokiRuleMountPath string
+
+	flag.BoolVar(
+		&enableLeaderElection,
+		"leader-elect",
+		false,
+		"Enable leader election for controller manager. Enabling this will ensure there is only one active manager.",
+	)
+	flag.StringVar(
+		&metricsAddr,
+		"metrics-bind-address",
+		":8080",
+		"The address the metric endpoint binds to.",
+	)
+	flag.StringVar(
+		&probeAddr,
+		"health-probe-bind-address",
+		":8081",
+		"The address the probe endpoint binds to.",
+	)
+	flag.StringVar(
+		&leaderElectionNamespace,
+		"leader-election-namespace",
+		"default",
+		"The namespace where the leader election configmap will be created.",
+	)
+	flag.StringVar(
+		&leaderElectionID,
+		"leader-election-id",
+		"21ccfc3d.quero.com",
+		"The id used to distinguish between multiple controller manager instances.",
+	)
+	flag.StringVar(
+		&logLevel,
+		"log-level",
+		"info",
+		"The log level (debug, info, warn, error, all).",
+	)
+	flag.StringVar(
+		&lokiLabelSelector,
+		"loki-label-selector",
+		"",
+		"The label selector used to filter loki instances.",
+	)
+	flag.StringVar(
+		&lokiNamespace,
+		"loki-namespace",
+		"default",
+		"The namespace where the operator will operate (same as target loki instance).",
+	)
+	flag.StringVar(
+		&lokiRuleMountPath,
+		"loki-rule-mount-path",
+		"/etc/loki/rules",
+		"The path where the operator will mount the loki rules configmap.",
+	)
 	flag.Parse()
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -77,37 +125,45 @@ func main() {
 		Port:                          9443,
 		HealthProbeBindAddress:        probeAddr,
 		LeaderElection:                enableLeaderElection,
-		LeaderElectionID:              leaderElectionId,
+		LeaderElectionID:              leaderElectionID,
 		LeaderElectionNamespace:       leaderElectionNamespace,
 		LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		log.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	lokiSelector, err := metav1.ParseToLabelSelector(lokiLabelSelector)
+	if err != nil {
+		log.Error(err, "unable to parse loki label selector")
 		os.Exit(1)
 	}
 
 	if err = (&controllers.LokiRuleReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Logger: log.NewLogger(logLevel),
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		Logger:            log,
+		LokiRulesPath:     lokiRuleMountPath,
+		LokiLabelSelector: lokiSelector,
+		LokiNamespace:     lokiNamespace,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "LokiRule")
+		log.Error(err, "unable to create controller", "controller", "LokiRule")
 		os.Exit(1)
 	}
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
+		log.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
+		log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
+	log.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		log.Error(err, "problem running manager")
 		os.Exit(1)
 	}
 }

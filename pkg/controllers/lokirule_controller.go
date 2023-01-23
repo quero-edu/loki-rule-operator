@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -93,10 +92,12 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 				r.Logger.Error(err, "Failed to get Loki statefulSet")
 			}
 
+			configMapName := lokirule.GenerateConfigMapName(deletedInstance)
+
 			r.Logger.Info("Unmounting configMap from loki statefulSet")
 			err = k8sutils.UnmountConfigMap(
 				r.Client,
-				deletedInstance.Spec.Name,
+				configMapName,
 				lokiStatefulset,
 				k8sutils.Options{Ctx: context.Background(), Logger: r.Logger},
 			)
@@ -109,8 +110,8 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 
 			err = k8sutils.DeleteConfigMap(
 				r.Client,
-				deletedInstance.Spec.Name,
-				deletedInstance.Namespace,
+				configMapName,
+				r.LokiNamespace,
 				k8sutils.Options{Ctx: context.Background(), Logger: r.Logger},
 			)
 			if err != nil {
@@ -148,23 +149,18 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	labels := lokirule.GenerateLokiRuleLabels(instance)
+	configMapName := lokirule.GenerateConfigMapName(instance)
 
 	configMap, err := k8sutils.CreateOrUpdateConfigMap(
 		r.Client,
-		instance.Namespace,
-		instance.Spec.Name,
+		r.LokiNamespace,
+		configMapName,
 		instance.Spec.Data,
 		labels,
 		options,
 	)
 	if err != nil {
 		r.Logger.Error(err, "Failed to ensure configMap exists")
-		return reconcile.Result{}, err
-	}
-
-	err = controllerutil.SetControllerReference(instance, configMap, r.Scheme)
-	if err != nil {
-		r.Logger.Error(err, "Failed to set controller reference")
 		return reconcile.Result{}, err
 	}
 

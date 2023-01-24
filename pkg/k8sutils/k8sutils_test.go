@@ -45,12 +45,12 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("K8sutils", func() {
-	Describe("TestCreateOrUpdateConfigMap", func() {
+	Describe("TestCreateConfigMap", func() {
 		It("should create a ConfigMap with the given data and labels", func() {
 			configMapName := "test-configmap-create"
 			configMapData := map[string]string{"foo": "bar"}
 			configMapLabels := map[string]string{"lfoo": "lbar"}
-			_, err := CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, configMapData, configMapLabels, Options{})
+			_, err := CreateConfigMap(k8sClient, NAMESPACE, configMapName, configMapData, configMapLabels, Options{})
 			Expect(err).To(BeNil())
 
 			configMap := &corev1.ConfigMap{}
@@ -64,9 +64,11 @@ var _ = Describe("K8sutils", func() {
 			Expect(configMap.Data).To(Equal(configMapData))
 			Expect(configMap.Labels).To(Equal(configMapLabels))
 		})
+	})
 
+	Describe("AddToConfigMap", func() {
 		It("should update the ConfigMap with new data", func() {
-			configMapName := "test-configmap-update"
+			configMapName := "test-configmap-add-update"
 			configMapData := map[string]string{"foo": "bar"}
 			configMapLabels := map[string]string{"lfoo": "lbar"}
 
@@ -83,7 +85,7 @@ var _ = Describe("K8sutils", func() {
 			Expect(err).To(BeNil())
 
 			newConfigMapData := map[string]string{"baz": "foo"}
-			_, err = CreateOrUpdateConfigMap(
+			_, err = AddToConfigMap(
 				k8sClient,
 				NAMESPACE,
 				configMapName,
@@ -100,8 +102,57 @@ var _ = Describe("K8sutils", func() {
 				Namespace: NAMESPACE,
 			}, configMap)
 
+			expectedConfigMapData := map[string]string{"foo": "bar", "baz": "foo"}
 			Expect(err).To(BeNil())
-			Expect(configMap.Data).To(Equal(newConfigMapData))
+			Expect(configMap.Data).To(Equal(expectedConfigMapData))
+			Expect(configMap.Namespace).To(Equal(NAMESPACE))
+			Expect(configMap.Name).To(Equal(configMapName))
+			Expect(configMap.Labels).To(Equal(configMapLabels))
+		})
+	})
+
+	Describe("RemoveFromConfigMap", func() {
+		It("should remove the data from configMap", func() {
+			configMapName := "test-configmap-rm-update"
+			configMapData := map[string]string{"foo": "bar", "baz": "foo"}
+			configMapLabels := map[string]string{"lfoo": "lbar"}
+
+			configMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: NAMESPACE,
+					Labels:    configMapLabels,
+				},
+				Data: configMapData,
+			}
+
+			err := k8sClient.Create(context.TODO(), configMap)
+			Expect(err).To(BeNil())
+
+			removeConfigMapData := map[string]string{"foo": "bar"}
+			_, err = RemoveFromConfigMap(
+				k8sClient,
+				NAMESPACE,
+				configMapName,
+				removeConfigMapData,
+				configMapLabels,
+				Options{},
+			)
+
+			Expect(err).To(BeNil())
+
+			configMap = &corev1.ConfigMap{}
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{
+				Name:      configMapName,
+				Namespace: NAMESPACE,
+			}, configMap)
+
+			expectedConfigMapData := map[string]string{"baz": "foo"}
+			Expect(err).To(BeNil())
+			Expect(configMap.Data).To(Equal(expectedConfigMapData))
+			Expect(configMap.Namespace).To(Equal(NAMESPACE))
+			Expect(configMap.Name).To(Equal(configMapName))
+			Expect(configMap.Labels).To(Equal(configMapLabels))
 		})
 	})
 

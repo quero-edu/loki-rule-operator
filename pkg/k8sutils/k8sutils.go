@@ -9,7 +9,6 @@ import (
 	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -152,7 +151,15 @@ func GetStatefulSet(
 	return &statefulSets.Items[0], nil
 }
 
-func CreateOrUpdateConfigMap(
+func mergeStringMaps(a, b map[string]string) map[string]string {
+	for k, v := range b {
+		a[k] = v
+	}
+
+	return a
+}
+
+func AddToConfigMap(
 	cli client.Client,
 	namespace string,
 	configMapName string,
@@ -168,21 +175,64 @@ func CreateOrUpdateConfigMap(
 		Name:      configMapName,
 		Namespace: namespace,
 	}, configMap)
+	if err != nil {
+		return nil, err
+	}
+
+	configMap.Data = mergeStringMaps(configMap.Data, configMapData)
+
+	log.Debug("Updating ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
+	return configMap, cli.Update(ctx, configMap)
+}
+
+func RemoveFromConfigMap(
+	cli client.Client,
+	namespace string,
+	configMapName string,
+	configMapDataToRemove map[string]string,
+	labels map[string]string,
+	args Options,
+) (*corev1.ConfigMap, error) {
+	args = sanitizeOptions(args)
+	ctx, log := args.Ctx, args.Logger
+
+	configMap := &corev1.ConfigMap{}
+	err := cli.Get(ctx, types.NamespacedName{
+		Name:      configMapName,
+		Namespace: namespace,
+	}, configMap)
+	if err != nil {
+		return nil, err
+	}
+
+	for k := range configMapDataToRemove {
+		delete(configMap.Data, k)
+	}
+
+	log.Debug("Updating ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
+	return configMap, cli.Update(ctx, configMap)
+}
+
+func CreateConfigMap(
+	cli client.Client,
+	namespace string,
+	configMapName string,
+	configMapData map[string]string,
+	labels map[string]string,
+	args Options,
+) (*corev1.ConfigMap, error) {
+	args = sanitizeOptions(args)
+	ctx, log := args.Ctx, args.Logger
+
+	configMap := &corev1.ConfigMap{}
 
 	configMap.Name = configMapName
 	configMap.Namespace = namespace
 	configMap.Data = configMapData
 	configMap.Labels = labels
 
-	if errors.IsNotFound(err) {
-		log.Debug("Creating a new ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
-		return configMap, cli.Create(ctx, configMap)
-	} else if err != nil {
-		return nil, err
-	}
-
-	log.Debug("Updating ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
-	return configMap, cli.Update(ctx, configMap)
+	log.Debug("Creating a new ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
+	return configMap, cli.Create(ctx, configMap)
 }
 
 func DeleteConfigMap(cli client.Client, configMapName string, configMapNameSpace string, args Options) error {

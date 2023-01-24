@@ -306,12 +306,7 @@ func createNamespace(k8sClient client.Client, namespace string) error {
 		},
 	}
 
-	err := k8sClient.Create(context.TODO(), ns)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return k8sClient.Create(context.TODO(), ns)
 }
 
 func createStatefulSet(k8sClient client.Client, namespace string, labels map[string]string) (*appsv1.StatefulSet, error) {

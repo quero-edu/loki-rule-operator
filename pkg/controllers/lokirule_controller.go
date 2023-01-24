@@ -151,6 +151,7 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	labels := lokirule.GenerateLokiRuleLabels(instance)
 	configMapName := lokirule.GenerateConfigMapName(instance)
 
+	r.Logger.Info(r.LokiNamespace, "brunin")
 	configMap, err := k8sutils.CreateOrUpdateConfigMap(
 		r.Client,
 		r.LokiNamespace,

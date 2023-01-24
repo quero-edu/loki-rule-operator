@@ -34,6 +34,7 @@ const interval = time.Millisecond * 250
 
 const lokiRuleMountPath = "/etc/loki/rules"
 const namespaceName = "default"
+const lokiSTSNamespaceName = "loki"
 
 var k8sClient client.Client
 var testEnv *envtest.Environment
@@ -54,14 +55,16 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testEnv.Scheme})
-
 	Expect(err).ToNot(HaveOccurred())
 
 	labels := map[string]string{
 		"app": "loki",
 	}
 
-	lokiStatefulSet, err = createStatefulSet(k8sClient, namespaceName, labels)
+	err = createNamespace(k8sClient, lokiSTSNamespaceName)
+	Expect(err).ToNot(HaveOccurred())
+
+	lokiStatefulSet, err = createStatefulSet(k8sClient, lokiSTSNamespaceName, labels)
 	Expect(err).ToNot(HaveOccurred())
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -79,7 +82,7 @@ var _ = BeforeSuite(func() {
 		Logger:            logger.NewNopLogger(),
 		LokiRulesPath:     lokiRuleMountPath,
 		LokiLabelSelector: selector,
-		LokiNamespace:     namespaceName,
+		LokiNamespace:     lokiSTSNamespaceName,
 	}
 
 	err = (lokiRuleReconcilerInstance).SetupWithManager(mgr)
@@ -100,6 +103,7 @@ var _ = Describe("LokiRuleController", func() {
 	Describe("Reconcile", func() {
 		Context("When a LokiRule is created", func() {
 			const cfgMapName = "test-lokirule"
+			const expectedConfigMapName = "test-lokirule-default"
 
 			BeforeEach(func() {
 				lokiRule := &querocomv1alpha1.LokiRule{
@@ -136,8 +140,8 @@ var _ = Describe("LokiRuleController", func() {
 
 				Eventually(func() bool {
 					err := k8sClient.Get(context.TODO(), client.ObjectKey{
-						Name:      cfgMapName,
-						Namespace: namespaceName,
+						Name:      expectedConfigMapName,
+						Namespace: lokiSTSNamespaceName,
 					}, configMap)
 					if err != nil {
 						GinkgoWriter.Println("Error getting configMap: %v", err)
@@ -154,13 +158,13 @@ var _ = Describe("LokiRuleController", func() {
 			})
 
 			It("Should mount the configMap and annotate the statefulset", func() {
-				expectedVolumeName := fmt.Sprintf("%s-volume", cfgMapName)
+				expectedVolumeName := fmt.Sprintf("%s-volume", expectedConfigMapName)
 				resultStatefulSet := &appsv1.StatefulSet{}
 
 				Eventually(func() bool {
 					err := k8sClient.Get(context.TODO(), client.ObjectKey{
 						Name:      lokiStatefulSet.Name,
-						Namespace: namespaceName,
+						Namespace: lokiSTSNamespaceName,
 					}, resultStatefulSet)
 
 					if err != nil {
@@ -193,14 +197,14 @@ var _ = Describe("LokiRuleController", func() {
 						return false
 					}
 
-					if resultStatefulSet.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.Name != cfgMapName {
+					if resultStatefulSet.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.Name != expectedConfigMapName {
 						GinkgoWriter.Println("ConfigMap name is not test-lokirule-config")
 						return false
 					}
 
 					// generated from lokirule.data
 					const expectedAnnotationHash = "3e80b3778b3b03766e7be993131c0af2ad05630c5d96fb7fa132d05b77336e04"
-					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", cfgMapName)
+					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", expectedConfigMapName)
 
 					if resultStatefulSet.Spec.Template.Annotations == nil {
 						GinkgoWriter.Println("Annotations is not set")
@@ -254,7 +258,7 @@ var _ = Describe("LokiRuleController", func() {
 				Eventually(func() bool {
 					err := k8sClient.Get(context.TODO(), client.ObjectKey{
 						Name:      "test-lokirule-config-delete",
-						Namespace: namespaceName,
+						Namespace: lokiSTSNamespaceName,
 					}, configMap)
 					if err != nil {
 						if errors.IsNotFound(err) {
@@ -273,7 +277,7 @@ var _ = Describe("LokiRuleController", func() {
 				Eventually(func() bool {
 					err := k8sClient.Get(context.TODO(), client.ObjectKey{
 						Name:      lokiStatefulSet.Name,
-						Namespace: namespaceName,
+						Namespace: lokiSTSNamespaceName,
 					}, resultStatefulSet)
 					if err != nil {
 						GinkgoWriter.Println("Error getting statefulSet, %v", err)
@@ -294,6 +298,16 @@ var _ = Describe("LokiRuleController", func() {
 		})
 	})
 })
+
+func createNamespace(k8sClient client.Client, namespace string) error {
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+		},
+	}
+
+	return k8sClient.Create(context.TODO(), ns)
+}
 
 func createStatefulSet(k8sClient client.Client, namespace string, labels map[string]string) (*appsv1.StatefulSet, error) {
 	lokiStatefulSet := &appsv1.StatefulSet{

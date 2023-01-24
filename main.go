@@ -140,6 +140,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if lokiNamespace == "" {
+		lokiNamespace = "default"
+	}
+
 	if err = (&controllers.LokiRuleReconciler{
 		Client:            mgr.GetClient(),
 		Scheme:            mgr.GetScheme(),

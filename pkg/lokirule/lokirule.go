@@ -1,8 +1,6 @@
 package lokirule
 
 import (
-	"fmt"
-
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 )
 
@@ -17,8 +15,4 @@ func GenerateLokiRuleLabels(lokiRule *querocomv1alpha1.LokiRule) map[string]stri
 	labels["app.kubernetes.io/managed-by"] = "loki-rule-operator"
 
 	return labels
-}
-
-func GenerateConfigMapName(lokiRule *querocomv1alpha1.LokiRule) string {
-	return fmt.Sprintf("%s-%s", lokiRule.Spec.Name, lokiRule.Namespace)
 }

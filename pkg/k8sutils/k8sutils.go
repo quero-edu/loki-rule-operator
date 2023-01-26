@@ -66,26 +66,6 @@ func volumeIsMounted(volumeName string, lokiStatefulSet *appsv1.StatefulSet) boo
 	return false
 }
 
-func removeVolumeByName(volumes []corev1.Volume, name string) []corev1.Volume {
-	for i, volume := range volumes {
-		if volume.Name == name {
-			return append(volumes[:i], volumes[i+1:]...)
-		}
-	}
-
-	return volumes
-}
-
-func removeVolumeMountByName(volumeMounts []corev1.VolumeMount, name string) []corev1.VolumeMount {
-	for i, volumeMount := range volumeMounts {
-		if volumeMount.Name == name {
-			volumeMounts = append(volumeMounts[:i], volumeMounts[i+1:]...)
-		}
-	}
-
-	return volumeMounts
-}
-
 func generateVolumeMounts(
 	mountPath string,
 	configMapName string,
@@ -109,6 +89,13 @@ func generateVolumeMounts(
 	}
 
 	return volume, volumeMount
+}
+
+func mergeStringMaps(a, b map[string]string) map[string]string {
+	for k, v := range b {
+		a[k] = v
+	}
+	return a
 }
 
 func GetStatefulSet(
@@ -151,20 +138,11 @@ func GetStatefulSet(
 	return &statefulSets.Items[0], nil
 }
 
-func mergeStringMaps(a, b map[string]string) map[string]string {
-	for k, v := range b {
-		a[k] = v
-	}
-
-	return a
-}
-
 func AddToConfigMap(
 	cli client.Client,
 	namespace string,
 	configMapName string,
 	configMapData map[string]string,
-	labels map[string]string,
 	args Options,
 ) (*corev1.ConfigMap, error) {
 	args = sanitizeOptions(args)
@@ -179,6 +157,9 @@ func AddToConfigMap(
 		return nil, err
 	}
 
+	if configMap.Data == nil {
+		configMap.Data = map[string]string{}
+	}
 	configMap.Data = mergeStringMaps(configMap.Data, configMapData)
 
 	log.Debug("Updating ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
@@ -190,7 +171,6 @@ func RemoveFromConfigMap(
 	namespace string,
 	configMapName string,
 	configMapDataToRemove map[string]string,
-	labels map[string]string,
 	args Options,
 ) (*corev1.ConfigMap, error) {
 	args = sanitizeOptions(args)
@@ -217,7 +197,6 @@ func CreateConfigMap(
 	cli client.Client,
 	namespace string,
 	configMapName string,
-	configMapData map[string]string,
 	labels map[string]string,
 	args Options,
 ) (*corev1.ConfigMap, error) {
@@ -228,14 +207,20 @@ func CreateConfigMap(
 
 	configMap.Name = configMapName
 	configMap.Namespace = namespace
-	configMap.Data = configMapData
 	configMap.Labels = labels
 
 	log.Debug("Creating a new ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
 	return configMap, cli.Create(ctx, configMap)
 }
 
-func DeleteConfigMap(cli client.Client, configMapName string, configMapNameSpace string, args Options) error {
+func MountConfigMap(
+	cli client.Client,
+	configMapNameSpace string,
+	configMapName string,
+	mountPath string,
+	lokiStatefulSet *appsv1.StatefulSet,
+	args Options,
+) error {
 	args = sanitizeOptions(args)
 	ctx, log := args.Ctx, args.Logger
 
@@ -244,25 +229,10 @@ func DeleteConfigMap(cli client.Client, configMapName string, configMapNameSpace
 		Name:      configMapName,
 		Namespace: configMapNameSpace,
 	}, configMap)
-
 	if err != nil {
 		log.Debug("failed to get configmap", "err", err)
 		return err
 	}
-
-	log.Debug("Deleting ConfigMap", "ConfigMap.Namespace", configMap.Namespace, "ConfigMap.Name", configMap.Name)
-	return cli.Delete(ctx, configMap)
-}
-
-func MountConfigMap(
-	cli client.Client,
-	configMap *corev1.ConfigMap,
-	mountPath string,
-	lokiStatefulSet *appsv1.StatefulSet,
-	args Options,
-) error {
-	args = sanitizeOptions(args)
-	ctx, log := args.Ctx, args.Logger
 
 	volume, volumeMount := generateVolumeMounts(mountPath, configMap.Name)
 
@@ -292,40 +262,6 @@ func MountConfigMap(
 	err = cli.Patch(ctx, lokiStatefulSet, client.Merge)
 	if err != nil {
 		log.Debug("failed to patch statefulSet", "statefulSet", lokiStatefulSet.Name, "err", err)
-		return err
-	}
-
-	return nil
-}
-
-func UnmountConfigMap(
-	cli client.Client,
-	configMapName string,
-	statefulSet *appsv1.StatefulSet,
-	args Options,
-) error {
-	args = sanitizeOptions(args)
-	ctx, log := args.Ctx, args.Logger
-
-	volumeName := genVolumeNameFromConfigMap(configMapName)
-	configMapAnnotationName := genHashAnnotation(configMapName)
-
-	if !volumeExists(volumeName, statefulSet) && !volumeIsMounted(volumeName, statefulSet) {
-		log.Debug("volume does not exist in statefulSet", "statefulSet", statefulSet.Name)
-		return nil
-	}
-
-	statefulSet.Spec.Template.Spec.Volumes = removeVolumeByName(statefulSet.Spec.Template.Spec.Volumes, volumeName)
-	statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts = removeVolumeMountByName(
-		statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts,
-		volumeName,
-	)
-
-	delete(statefulSet.Spec.Template.Annotations, configMapAnnotationName)
-
-	err := cli.Update(ctx, statefulSet)
-	if err != nil {
-		log.Debug("failed to update statefulSet", "statefulSet", statefulSet.Name, "err", err)
 		return err
 	}
 

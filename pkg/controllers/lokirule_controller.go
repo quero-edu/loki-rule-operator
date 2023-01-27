@@ -33,28 +33,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-const lokiRuleConfigMapName = "loki-rule-cfg"
-
 // LokiRuleReconciler reconciles a LokiRule object
 type LokiRuleReconciler struct {
 	client.Client
-	Scheme            *runtime.Scheme
-	Logger            logger.Logger
-	LokiRulesPath     string
-	LokiLabelSelector *metav1.LabelSelector
-	LokiNamespace     string
+	Scheme                *runtime.Scheme
+	Logger                logger.Logger
+	LokiRulesPath         string
+	LokiLabelSelector     *metav1.LabelSelector
+	LokiNamespace         string
+	LokiRuleConfigMapName string
 }
 
 func (r *LokiRuleReconciler) newRuleHandler(
-	configMapName string,
-	configMapData map[string]string,
-	configMapLabels map[string]string,
-	options k8sutils.Options,
+	rule *querocomv1alpha1.LokiRule,
 ) error {
+	configMapLabels := lokirule.GenerateLokiRuleLabels(rule)
+	options := k8sutils.Options{Ctx: context.Background(), Logger: r.Logger}
+
 	_, err := k8sutils.CreateConfigMap(
 		r.Client,
 		r.LokiNamespace,
-		configMapName,
+		r.LokiRuleConfigMapName,
 		configMapLabels,
 		options,
 	)
@@ -67,8 +66,8 @@ func (r *LokiRuleReconciler) newRuleHandler(
 	_, err = k8sutils.AddToConfigMap(
 		r.Client,
 		r.LokiNamespace,
-		configMapName,
-		configMapData,
+		r.LokiRuleConfigMapName,
+		rule.Spec.Data,
 		options,
 	)
 
@@ -132,7 +131,7 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 			_, err = k8sutils.RemoveFromConfigMap(
 				r.Client,
 				r.LokiNamespace,
-				lokiRuleConfigMapName,
+				r.LokiRuleConfigMapName,
 				deletedInstance.Spec.Data,
 				options,
 			)
@@ -143,7 +142,7 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 			err = k8sutils.MountConfigMap(
 				r.Client,
 				r.LokiNamespace,
-				lokiRuleConfigMapName,
+				r.LokiRuleConfigMapName,
 				r.LokiRulesPath,
 				lokiStatefulset,
 				options,
@@ -183,7 +182,11 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
-	labels := lokirule.GenerateLokiRuleLabels(instance)
+	err = r.newRuleHandler(instance)
+
+	if err != nil {
+		r.Logger.Error(err, "Failed to handle LokiRule")
+	}
 
 	lokiStatefulset, err := getLokiStatefulSet(
 		r.Client,
@@ -196,15 +199,10 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
-	err = r.newRuleHandler(lokiRuleConfigMapName, instance.Spec.Data, labels, options)
-	if err != nil {
-		r.Logger.Error(err, "Failed to handle LokiRule")
-	}
-
 	err = k8sutils.MountConfigMap(
 		r.Client,
 		r.LokiNamespace,
-		lokiRuleConfigMapName,
+		r.LokiRuleConfigMapName,
 		r.LokiRulesPath,
 		lokiStatefulset,
 		options,

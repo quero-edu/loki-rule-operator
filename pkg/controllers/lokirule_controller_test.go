@@ -36,6 +36,8 @@ const lokiRuleMountPath = "/etc/loki/rules"
 const namespaceName = "default"
 const lokiSTSNamespaceName = "loki"
 
+const lokiRuleConfigMapName = "loki-rule-cfg"
+
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
@@ -77,12 +79,13 @@ var _ = BeforeSuite(func() {
 	}
 
 	lokiRuleReconcilerInstance = &LokiRuleReconciler{
-		Client:            k8sClient,
-		Scheme:            testEnv.Scheme,
-		Logger:            logger.NewNopLogger(),
-		LokiRulesPath:     lokiRuleMountPath,
-		LokiLabelSelector: selector,
-		LokiNamespace:     lokiSTSNamespaceName,
+		Client:                k8sClient,
+		Scheme:                testEnv.Scheme,
+		Logger:                logger.NewNopLogger(),
+		LokiRulesPath:         lokiRuleMountPath,
+		LokiLabelSelector:     selector,
+		LokiNamespace:         lokiSTSNamespaceName,
+		LokiRuleConfigMapName: lokiRuleConfigMapName,
 	}
 
 	err = (lokiRuleReconcilerInstance).SetupWithManager(mgr)
@@ -143,7 +146,7 @@ var _ = Describe("LokiRuleController", func() {
 						Namespace: lokiSTSNamespaceName,
 					}, configMap)
 					if err != nil {
-						GinkgoWriter.Println("Error getting configMap: %v", err)
+						GinkgoWriter.Printf("Error getting configMap: %v\n", err)
 						return false
 					}
 
@@ -167,7 +170,7 @@ var _ = Describe("LokiRuleController", func() {
 					}, resultStatefulSet)
 
 					if err != nil {
-						GinkgoWriter.Println("Error getting statefulset: %v", err)
+						GinkgoWriter.Printf("Error getting statefulset: %v\n", err)
 						return false
 					}
 
@@ -210,7 +213,7 @@ var _ = Describe("LokiRuleController", func() {
 						return false
 					} else if resultStatefulSet.Spec.Template.Annotations[expectedAnnotationName] != expectedAnnotationHash {
 						GinkgoWriter.Printf(
-							"\nAnnotation is incorrect\n\texpected: %v\n\tgot annotations: %v",
+							"Annotation is incorrect\n\texpected: %v\n\tgot annotations: %v\n",
 							map[string]string{expectedAnnotationName: expectedAnnotationHash},
 							resultStatefulSet.Spec.Template.Annotations,
 						)
@@ -246,7 +249,7 @@ var _ = Describe("LokiRuleController", func() {
 					}, configMap)
 
 					if err != nil {
-						GinkgoWriter.Println("Error getting configMap: %v", err)
+						GinkgoWriter.Printf("Error getting configMap: %v\n", err)
 						return false
 					}
 					GinkgoWriter.Println("ConfigMap data: ", configMap.Data)
@@ -310,7 +313,7 @@ var _ = Describe("LokiRuleController", func() {
 						Namespace: lokiSTSNamespaceName,
 					}, configMap)
 					if err != nil {
-						GinkgoWriter.Println("Error getting configMap, %v", err)
+						GinkgoWriter.Printf("Error getting configMap, %v\n", err)
 						return false
 					}
 					if reflect.DeepEqual(configMap.Data, lokiRule2.Spec.Data) {
@@ -351,7 +354,7 @@ var _ = Describe("LokiRuleController", func() {
 						Namespace: lokiSTSNamespaceName,
 					}, configMap)
 					if err != nil {
-						GinkgoWriter.Println("Error getting configMap, %v", err)
+						GinkgoWriter.Printf("Error getting configMap, %v\n", err)
 						return false
 					}
 					if configMap.Data["test"] == newData["test"] {

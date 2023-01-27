@@ -145,12 +145,13 @@ func main() {
 	}
 
 	if err = (&controllers.LokiRuleReconciler{
-		Client:            mgr.GetClient(),
-		Scheme:            mgr.GetScheme(),
-		Logger:            log,
-		LokiRulesPath:     lokiRuleMountPath,
-		LokiLabelSelector: lokiSelector,
-		LokiNamespace:     lokiNamespace,
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		Logger:                log,
+		LokiRulesPath:         lokiRuleMountPath,
+		LokiLabelSelector:     lokiSelector,
+		LokiNamespace:         lokiNamespace,
+		LokiRuleConfigMapName: "loki-rule-cfg",
 	}).SetupWithManager(mgr); err != nil {
 		log.Error(err, "unable to create controller", "controller", "LokiRule")
 		os.Exit(1)

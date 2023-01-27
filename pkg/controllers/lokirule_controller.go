@@ -24,7 +24,6 @@ import (
 	"github.com/quero-edu/loki-rule-operator/pkg/k8sutils"
 	"github.com/quero-edu/loki-rule-operator/pkg/lokirule"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -60,7 +59,7 @@ func (r *LokiRuleReconciler) newRuleHandler(
 		options,
 	)
 
-	if err != nil && !errors.IsAlreadyExists(err) {
+	if err != nil {
 		options.Logger.Error(err, "Failed to ensure configMap exists")
 		return err
 	}

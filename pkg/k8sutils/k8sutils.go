@@ -9,6 +9,7 @@ import (
 	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -210,7 +211,14 @@ func CreateConfigMap(
 	configMap.Labels = labels
 
 	log.Debug("Creating a new ConfigMap", "ConfigMap.Namespace", namespace, "ConfigMap.Name", configMapName)
-	return configMap, cli.Create(ctx, configMap)
+	err := cli.Create(ctx, configMap)
+
+	if err != nil && !errors.IsAlreadyExists(err) {
+		log.Debug("failed to create configmap", "err", err)
+		return nil, err
+	}
+
+	return configMap, nil
 }
 
 func MountConfigMap(

@@ -36,11 +36,46 @@ import (
 // LokiRuleReconciler reconciles a LokiRule object
 type LokiRuleReconciler struct {
 	client.Client
-	Scheme            *runtime.Scheme
-	Logger            logger.Logger
-	LokiRulesPath     string
-	LokiLabelSelector *metav1.LabelSelector
-	LokiNamespace     string
+	Scheme                *runtime.Scheme
+	Logger                logger.Logger
+	LokiRulesPath         string
+	LokiLabelSelector     *metav1.LabelSelector
+	LokiNamespace         string
+	LokiRuleConfigMapName string
+}
+
+func (r *LokiRuleReconciler) newRuleHandler(
+	rule *querocomv1alpha1.LokiRule,
+) error {
+	configMapLabels := lokirule.GenerateLokiRuleLabels(rule)
+	options := k8sutils.Options{Ctx: context.Background(), Logger: r.Logger}
+
+	_, err := k8sutils.CreateConfigMap(
+		r.Client,
+		r.LokiNamespace,
+		r.LokiRuleConfigMapName,
+		configMapLabels,
+		options,
+	)
+
+	if err != nil {
+		options.Logger.Error(err, "Failed to ensure configMap exists")
+		return err
+	}
+
+	_, err = k8sutils.AddToConfigMap(
+		r.Client,
+		r.LokiNamespace,
+		r.LokiRuleConfigMapName,
+		rule.Spec.Data,
+		options,
+	)
+
+	if err != nil {
+		r.Logger.Error(err, "Failed to ensure configMap exists")
+		return err
+	}
+	return nil
 }
 
 func getLokiStatefulSet(
@@ -72,6 +107,7 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
+			options := k8sutils.Options{Ctx: context.TODO(), Logger: r.Logger}
 			deletedInstance := e.Object.(*querocomv1alpha1.LokiRule)
 
 			r.Logger.Info(
@@ -92,33 +128,31 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 				r.Logger.Error(err, "Failed to get Loki statefulSet")
 			}
 
-			configMapName := lokirule.GenerateConfigMapName(deletedInstance)
-
-			r.Logger.Info("Unmounting configMap from loki statefulSet")
-			err = k8sutils.UnmountConfigMap(
+			_, err = k8sutils.RemoveFromConfigMap(
 				r.Client,
-				configMapName,
-				lokiStatefulset,
-				k8sutils.Options{Ctx: context.Background(), Logger: r.Logger},
-			)
-
-			if err != nil {
-				r.Logger.Error(err, "Failed to unmount configMap from deployments")
-			}
-
-			r.Logger.Info("Deleting configMap")
-
-			err = k8sutils.DeleteConfigMap(
-				r.Client,
-				configMapName,
 				r.LokiNamespace,
-				k8sutils.Options{Ctx: context.Background(), Logger: r.Logger},
+				r.LokiRuleConfigMapName,
+				deletedInstance.Spec.Data,
+				options,
 			)
 			if err != nil {
-				r.Logger.Error(err, "Failed to delete configMap")
+				options.Logger.Error(err, "Failed to ensure configMap exists")
 			}
 
-			r.Logger.Info("deleted LokiRule reconciled")
+			err = k8sutils.MountConfigMap(
+				r.Client,
+				r.LokiNamespace,
+				r.LokiRuleConfigMapName,
+				r.LokiRulesPath,
+				lokiStatefulset,
+				options,
+			)
+
+			if err != nil {
+				r.Logger.Error(err, "ConfigMap not attached")
+			}
+
+			r.Logger.Info("LokiRule Reconciled")
 
 			return false
 		},
@@ -148,21 +182,10 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
-	labels := lokirule.GenerateLokiRuleLabels(instance)
-	configMapName := lokirule.GenerateConfigMapName(instance)
+	err = r.newRuleHandler(instance)
 
-	r.Logger.Info(r.LokiNamespace, "brunin")
-	configMap, err := k8sutils.CreateOrUpdateConfigMap(
-		r.Client,
-		r.LokiNamespace,
-		configMapName,
-		instance.Spec.Data,
-		labels,
-		options,
-	)
 	if err != nil {
-		r.Logger.Error(err, "Failed to ensure configMap exists")
-		return reconcile.Result{}, err
+		r.Logger.Error(err, "Failed to handle LokiRule")
 	}
 
 	lokiStatefulset, err := getLokiStatefulSet(
@@ -178,7 +201,8 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	err = k8sutils.MountConfigMap(
 		r.Client,
-		configMap,
+		r.LokiNamespace,
+		r.LokiRuleConfigMapName,
 		r.LokiRulesPath,
 		lokiStatefulset,
 		options,

@@ -45,12 +45,11 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("K8sutils", func() {
-	Describe("TestCreateOrUpdateConfigMap", func() {
+	Describe("TestCreateConfigMap", func() {
 		It("should create a ConfigMap with the given data and labels", func() {
 			configMapName := "test-configmap-create"
-			configMapData := map[string]string{"foo": "bar"}
 			configMapLabels := map[string]string{"lfoo": "lbar"}
-			_, err := CreateOrUpdateConfigMap(k8sClient, NAMESPACE, configMapName, configMapData, configMapLabels, Options{})
+			_, err := CreateConfigMap(k8sClient, NAMESPACE, configMapName, configMapLabels, Options{})
 			Expect(err).To(BeNil())
 
 			configMap := &corev1.ConfigMap{}
@@ -61,12 +60,13 @@ var _ = Describe("K8sutils", func() {
 
 			Expect(err).To(BeNil())
 			Expect(configMap.Name).To(Equal(configMapName))
-			Expect(configMap.Data).To(Equal(configMapData))
+			Expect(configMap.Namespace).To(Equal(NAMESPACE))
 			Expect(configMap.Labels).To(Equal(configMapLabels))
 		})
-
+	})
+	Describe("AddToConfigMap", func() {
 		It("should update the ConfigMap with new data", func() {
-			configMapName := "test-configmap-update"
+			configMapName := "test-configmap-add-update"
 			configMapData := map[string]string{"foo": "bar"}
 			configMapLabels := map[string]string{"lfoo": "lbar"}
 
@@ -83,12 +83,11 @@ var _ = Describe("K8sutils", func() {
 			Expect(err).To(BeNil())
 
 			newConfigMapData := map[string]string{"baz": "foo"}
-			_, err = CreateOrUpdateConfigMap(
+			_, err = AddToConfigMap(
 				k8sClient,
 				NAMESPACE,
 				configMapName,
 				newConfigMapData,
-				configMapLabels,
 				Options{},
 			)
 
@@ -100,15 +99,19 @@ var _ = Describe("K8sutils", func() {
 				Namespace: NAMESPACE,
 			}, configMap)
 
+			expectedConfigMapData := map[string]string{"foo": "bar", "baz": "foo"}
 			Expect(err).To(BeNil())
-			Expect(configMap.Data).To(Equal(newConfigMapData))
+			Expect(configMap.Data).To(Equal(expectedConfigMapData))
+			Expect(configMap.Namespace).To(Equal(NAMESPACE))
+			Expect(configMap.Name).To(Equal(configMapName))
+			Expect(configMap.Labels).To(Equal(configMapLabels))
 		})
 	})
 
-	Describe("TestDeleteConfigMap", func() {
-		It("should delete the ConfigMap", func() {
-			configMapName := "test-configmap-delete"
-			configMapData := map[string]string{"foo": "bar"}
+	Describe("RemoveFromConfigMap", func() {
+		It("should remove the data from configMap", func() {
+			configMapName := "test-configmap-rm-update"
+			configMapData := map[string]string{"foo": "bar", "baz": "foo"}
 			configMapLabels := map[string]string{"lfoo": "lbar"}
 
 			configMap := &corev1.ConfigMap{
@@ -123,7 +126,15 @@ var _ = Describe("K8sutils", func() {
 			err := k8sClient.Create(context.TODO(), configMap)
 			Expect(err).To(BeNil())
 
-			err = DeleteConfigMap(k8sClient, configMapName, NAMESPACE, Options{})
+			removeConfigMapData := map[string]string{"foo": "bar"}
+			_, err = RemoveFromConfigMap(
+				k8sClient,
+				NAMESPACE,
+				configMapName,
+				removeConfigMapData,
+				Options{},
+			)
+
 			Expect(err).To(BeNil())
 
 			configMap = &corev1.ConfigMap{}
@@ -132,7 +143,12 @@ var _ = Describe("K8sutils", func() {
 				Namespace: NAMESPACE,
 			}, configMap)
 
-			Expect(errors.IsNotFound(err)).To(BeTrue())
+			expectedConfigMapData := map[string]string{"baz": "foo"}
+			Expect(err).To(BeNil())
+			Expect(configMap.Data).To(Equal(expectedConfigMapData))
+			Expect(configMap.Namespace).To(Equal(NAMESPACE))
+			Expect(configMap.Name).To(Equal(configMapName))
+			Expect(configMap.Labels).To(Equal(configMapLabels))
 		})
 	})
 
@@ -213,7 +229,7 @@ var _ = Describe("K8sutils", func() {
 		})
 
 		It("Should mount the configMap", func() {
-			err = MountConfigMap(k8sClient, configMap, mountPath, statefulSet, Options{})
+			err = MountConfigMap(k8sClient, NAMESPACE, configMapName, mountPath, statefulSet, Options{})
 			Expect(err).To(BeNil())
 
 			updatedStatefulSet := &appsv1.StatefulSet{}
@@ -242,81 +258,6 @@ var _ = Describe("K8sutils", func() {
 			Expect(
 				updatedStatefulSet.Spec.Template.Annotations,
 			).To(HaveKeyWithValue(expectedAnnotationName, expectedAnnotationHash))
-		})
-	})
-
-	Describe("UnmountConfigMap", func() {
-		const mountPath = "/etc/config"
-
-		var statefulSet *appsv1.StatefulSet
-		var err error
-
-		configMapName := "loki-config"
-		configMapData := map[string]string{"foo": "bar"}
-		configMapLabels := map[string]string{"app.kubernetes.io/name": "loki"}
-
-		configMap := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      configMapName,
-				Namespace: NAMESPACE,
-				Labels:    configMapLabels,
-			},
-			Data: configMapData,
-		}
-
-		BeforeEach(func() {
-			statefulSet, err = createStatefulSet()
-			Expect(err).To(BeNil())
-
-			err = k8sClient.Create(context.TODO(), configMap)
-			Expect(err).To(BeNil())
-
-			statefulSet.Spec.Template.Spec.Volumes = []corev1.Volume{
-				{
-					Name: fmt.Sprintf("%s-volume", configMapName),
-					VolumeSource: corev1.VolumeSource{
-						ConfigMap: &corev1.ConfigMapVolumeSource{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: configMapName,
-							},
-						},
-					},
-				},
-			}
-
-			statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
-				{
-					Name:      fmt.Sprintf("%s-volume", configMapName),
-					MountPath: mountPath,
-				},
-			}
-
-			err = k8sClient.Update(context.TODO(), statefulSet)
-			Expect(err).To(BeNil())
-		})
-
-		AfterEach(func() {
-			_, err = deleteStatefulSet()
-			Expect(err).To(BeNil())
-
-			err = k8sClient.Delete(context.TODO(), configMap)
-			Expect(err).To(BeNil())
-		})
-
-		It("Should unmount the configMap", func() {
-			err = UnmountConfigMap(k8sClient, configMapName, statefulSet, Options{})
-			Expect(err).To(BeNil())
-
-			updatedStatefulSet := &appsv1.StatefulSet{}
-			err = k8sClient.Get(context.TODO(), types.NamespacedName{
-				Name:      statefulSet.Name,
-				Namespace: statefulSet.Namespace,
-			}, updatedStatefulSet)
-			Expect(err).To(BeNil())
-
-			Expect(updatedStatefulSet.Spec.Template.Spec.Volumes).To(BeEmpty())
-			Expect(updatedStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts).To(BeEmpty())
-			Expect(updatedStatefulSet.Spec.Template.Annotations).To(BeEmpty())
 		})
 	})
 })

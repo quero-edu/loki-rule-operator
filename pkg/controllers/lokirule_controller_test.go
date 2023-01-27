@@ -220,6 +220,48 @@ var _ = Describe("LokiRuleController", func() {
 					return true
 				}, timeout, interval).Should(BeTrue())
 			})
+
+			It("Should be able to handle 2 LokiRules", func() {
+				lokiRule := &querocomv1alpha1.LokiRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-lokirule-2",
+						Namespace: namespaceName,
+					},
+					Spec: querocomv1alpha1.LokiRuleSpec{
+						Name: "loki-rule-cfg-2",
+						Data: map[string]string{
+							"test2": "test2",
+						},
+					},
+				}
+				err := k8sClient.Create(context.TODO(), lokiRule)
+				Expect(err).To(BeNil())
+
+				configMap := &corev1.ConfigMap{}
+				Eventually(func() bool {
+
+					err = k8sClient.Get(context.TODO(), client.ObjectKey{
+						Name:      lokiRuleConfigMapName,
+						Namespace: lokiSTSNamespaceName,
+					}, configMap)
+
+					if err != nil {
+						GinkgoWriter.Println("Error getting configMap: %v", err)
+						return false
+					}
+					GinkgoWriter.Println("ConfigMap data: ", configMap.Data)
+					if configMap.Data["test"] != "test" {
+						GinkgoWriter.Println("ConfigMap data is not correct")
+						return false
+					}
+					if configMap.Data["test2"] != "test2" {
+						GinkgoWriter.Println("ConfigMap data is not correct")
+						return false
+					}
+					return true
+				}, timeout, interval).Should(BeTrue())
+			})
+
 		})
 
 		Context("When a LokiRule is deleted", func() {

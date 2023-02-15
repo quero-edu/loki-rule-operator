@@ -288,8 +288,18 @@ var _ = Describe("LokiRuleController", func() {
 						}
 
 						expectedCfgMapData := map[string]string{
-							"default-test-lokirule.yaml":   "groups:- name: default-test-lokirule\n  rules:\n  - record: test_record\n    expr: test_expr\n",
-							"default-test-lokirule-2.yaml": "groups:- name: default-test-lokirule\n  rules:\n  - record: test_record\n    expr: test_expr\n",
+							"default-test-lokirule.yaml": `groups:
+- name: default-test-lokirule
+  rules:
+  - record: test_record
+    expr: test_expr
+`,
+							"default-test-lokirule-2.yaml": `groups:
+- name: default-test-lokirule
+  rules:
+  - record: test_record
+    expr: test_expr
+`,
 						}
 
 						if reflect.DeepEqual(configMap.Data, expectedCfgMapData) {
@@ -371,11 +381,20 @@ var _ = Describe("LokiRuleController", func() {
 					}
 
 					expectedCfgMapData := map[string]string{
-						"default-test2-lokirule.yaml": "groups:\n- name: default-test2-lokirule\n  rules:\n  - record: test_record2\n    expr: test_expr2\n",
+						"default-test2-lokirule.yaml": `groups:
+- name: default-test2-lokirule
+  rules:
+  - record: test_record2
+    expr: test_expr2
+`,
 					}
 
 					if !reflect.DeepEqual(configMap.Data, expectedCfgMapData) {
-						GinkgoWriter.Printf("ConfigMap data does not match, Got: %v\nExpected: %v", configMap.Data, expectedCfgMapData)
+						GinkgoWriter.Printf(
+							"ConfigMap data does not match, Got: %v\nExpected: %v\n",
+							configMap.Data,
+							expectedCfgMapData,
+						)
 						return false
 					}
 					return true
@@ -428,7 +447,11 @@ var _ = Describe("LokiRuleController", func() {
 					}
 
 					if len(unmarshaledRuleFile) != 1 {
-						GinkgoWriter.Printf("RuleFile length does not match, Got: %v - Expected: %v\n", len(unmarshaledRuleFile), 1)
+						GinkgoWriter.Printf(
+							"RuleFile length does not match, Got: %v - Expected: %v\n",
+							len(unmarshaledRuleFile),
+							1,
+						)
 						return false
 					}
 
@@ -441,7 +464,12 @@ var _ = Describe("LokiRuleController", func() {
 
 					ruleExpression := unmarshaledRules[0].(map[string]interface{})["expr"].(string)
 					if ruleExpression != "test_expr_update2" {
-						GinkgoWriter.Printf("Rule expr does not match (rule: %v), Got: %s\nExpected: %s\n", unmarshaledRules, ruleExpression, "test_expr_update2")
+						GinkgoWriter.Printf(
+							"Rule expr does not match (rule: %v), Got: %s\nExpected: %s\n",
+							unmarshaledRules,
+							ruleExpression,
+							"test_expr_update2",
+						)
 						return false
 					}
 

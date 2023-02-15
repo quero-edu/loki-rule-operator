@@ -20,16 +20,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// Rule defines a rule for a LokiRule
+type Rule struct {
+	Alert       string            `json:"alert,omitempty" yaml:"alert,omitempty"`
+	Record      string            `json:"record,omitempty" yaml:"record,omitempty"`
+	Expr        string            `json:"expr,omitempty" yaml:"expr"`
+	For         string            `json:"for,omitempty" yaml:"for,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
+}
 
 // LokiRuleSpec defines the desired state of LokiRule
 type LokiRuleSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	Name string            `json:"name,omitempty" yaml:"name"`
-	Data map[string]string `json:"data,omitempty" yaml:"data"`
+	Rules []Rule `json:"rules,omitempty" yaml:"rules"`
 }
 
 // LokiRuleStatus defines the observed state of LokiRule

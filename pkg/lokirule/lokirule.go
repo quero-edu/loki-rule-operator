@@ -1,18 +1,43 @@
 package lokirule
 
 import (
+	"fmt"
+
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	"gopkg.in/yaml.v2"
 )
 
-func GenerateLokiRuleLabels(lokiRule *querocomv1alpha1.LokiRule) map[string]string {
-	labels := lokiRule.Labels
-
-	if labels == nil {
-		labels = make(map[string]string)
+func generateRuleGroups(rule *querocomv1alpha1.LokiRule, ruleGroupName string) (string, error) {
+	ruleFileMap := map[string][]map[string]interface{}{
+		"groups": {
+			{
+				"name":  ruleGroupName,
+				"rules": rule.Spec.Rules,
+			},
+		},
 	}
 
-	labels["app.kubernetes.io/component"] = "loki-rule-cfg"
-	labels["app.kubernetes.io/managed-by"] = "loki-rule-operator"
+	yamlfiedGroups, err := yaml.Marshal(ruleFileMap)
+	if err != nil {
+		return "", err
+	}
 
-	return labels
+	return string(yamlfiedGroups), err
+}
+
+func GenerateRuleConfigMapFile(rule *querocomv1alpha1.LokiRule) (map[string]string, error) {
+	ruleGroupName := fmt.Sprintf("%s-%s", rule.Namespace, rule.Name)
+
+	groups, err := generateRuleGroups(rule, ruleGroupName)
+	if err != nil {
+		return nil, err
+	}
+
+	fileName := fmt.Sprintf("%s.yaml", ruleGroupName)
+
+	ruleFile := map[string]string{
+		fileName: groups,
+	}
+
+	return ruleFile, nil
 }

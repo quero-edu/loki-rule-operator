@@ -154,21 +154,34 @@ var _ = Describe("LokiRuleController", func() {
 						return false
 					}
 
-					expectedCfgMapData := map[string]string{
-						"default-test-lokirule.yaml": `groups:
-- name: default-test-lokirule
-  rules:
-  - record: test_record
-    expr: test_expr
-`,
+					expectedCfgMapData := map[string]interface{}{
+						"groups": []interface{}{
+							map[string]interface{}{
+								"name": "default-test-lokirule",
+								"rules": []interface{}{
+									map[string]interface{}{
+										"record": "test_record",
+										"expr":   "test_expr",
+									},
+								},
+							},
+						},
 					}
 
-					if !reflect.DeepEqual(configMap.Data, expectedCfgMapData) {
+					unmarshaledCfgMapData := map[string]interface{}{}
+					err = yaml.Unmarshal([]byte(configMap.Data["default-test-lokirule.yaml"]), &unmarshaledCfgMapData)
+					if err != nil {
+						GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
+						return false
+					}
+
+					if !reflect.DeepEqual(expectedCfgMapData, unmarshaledCfgMapData) {
 						GinkgoWriter.Printf(
-							"ConfigMap data is not correct\nGot:\n%v\nExpected:\n%v\n",
-							configMap.Data,
+							"ConfigMap data does not match, Got: %v\nExpected: %v\n",
+							unmarshaledCfgMapData,
 							expectedCfgMapData,
 						)
+
 						return false
 					}
 
@@ -252,8 +265,8 @@ var _ = Describe("LokiRuleController", func() {
 						Spec: querocomv1alpha1.LokiRuleSpec{
 							Rules: []querocomv1alpha1.Rule{
 								{
-									Record: "test_record",
-									Expr:   "test_expr",
+									Record: "test_record2",
+									Expr:   "test_expr2",
 								},
 							},
 						},
@@ -287,23 +300,76 @@ var _ = Describe("LokiRuleController", func() {
 							return false
 						}
 
-						expectedCfgMapData := map[string]string{
-							"default-test-lokirule.yaml": `groups:
-- name: default-test-lokirule
-  rules:
-  - record: test_record
-    expr: test_expr
-`,
-							"default-test-lokirule-2.yaml": `groups:
-- name: default-test-lokirule
-  rules:
-  - record: test_record
-    expr: test_expr
-`,
+						if len(configMap.Data) != 2 {
+							GinkgoWriter.Printf("ConfigMap data length is not 2, got %v\n", len(configMap.Data))
 						}
 
-						if reflect.DeepEqual(configMap.Data, expectedCfgMapData) {
-							GinkgoWriter.Printf("ConfigMap data is not correct: %v\n", configMap.Data)
+						lokiRuleOneExpectedCfgMapData := map[string]interface{}{
+							"groups": []interface{}{
+								map[string]interface{}{
+									"name": "default-test-lokirule",
+									"rules": []interface{}{
+										map[string]interface{}{
+											"record": "test_record",
+											"expr":   "test_expr",
+										},
+									},
+								},
+							},
+						}
+
+						lokiRuleOneUnmarshaledCfgMapData := map[string]interface{}{}
+						err = yaml.Unmarshal(
+							[]byte(configMap.Data["default-test-lokirule.yaml"]),
+							&lokiRuleOneUnmarshaledCfgMapData,
+						)
+						if err != nil {
+							GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
+							return false
+						}
+
+						if !reflect.DeepEqual(lokiRuleOneExpectedCfgMapData, lokiRuleOneUnmarshaledCfgMapData) {
+							GinkgoWriter.Printf(
+								"ConfigMap data from rule 1 does not match, Got: %v\nExpected: %v\n",
+								lokiRuleOneUnmarshaledCfgMapData,
+								lokiRuleOneExpectedCfgMapData,
+							)
+
+							return false
+						}
+
+						lokiRuleTwoExpectedCfgMapData := map[string]interface{}{
+							"groups": []interface{}{
+								map[string]interface{}{
+									"name": "default-test-lokirule-2",
+									"rules": []interface{}{
+										map[string]interface{}{
+											"record": "test_record2",
+											"expr":   "test_expr2",
+										},
+									},
+								},
+							},
+						}
+
+						lokiRuleTwoUnmarshaledCfgMapData := map[string]interface{}{}
+
+						err = yaml.Unmarshal(
+							[]byte(configMap.Data["default-test-lokirule-2.yaml"]),
+							&lokiRuleTwoUnmarshaledCfgMapData,
+						)
+						if err != nil {
+							GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
+							return false
+						}
+
+						if !reflect.DeepEqual(lokiRuleTwoExpectedCfgMapData, lokiRuleTwoUnmarshaledCfgMapData) {
+							GinkgoWriter.Printf(
+								"ConfigMap data from rule 2 does not match, Got: %v\nExpected: %v\n",
+								lokiRuleTwoUnmarshaledCfgMapData,
+								lokiRuleTwoExpectedCfgMapData,
+							)
+
 							return false
 						}
 
@@ -380,19 +446,31 @@ var _ = Describe("LokiRuleController", func() {
 						return false
 					}
 
-					expectedCfgMapData := map[string]string{
-						"default-test2-lokirule.yaml": `groups:
-- name: default-test2-lokirule
-  rules:
-  - record: test_record2
-    expr: test_expr2
-`,
+					expectedCfgMapData := map[string]interface{}{
+						"groups": []interface{}{
+							map[string]interface{}{
+								"name": "default-test2-lokirule",
+								"rules": []interface{}{
+									map[string]interface{}{
+										"record": "test_record2",
+										"expr":   "test_expr2",
+									},
+								},
+							},
+						},
 					}
 
-					if !reflect.DeepEqual(configMap.Data, expectedCfgMapData) {
+					unmarshaledCfgMapData := map[string]interface{}{}
+					err = yaml.Unmarshal([]byte(configMap.Data["default-test2-lokirule.yaml"]), &unmarshaledCfgMapData)
+					if err != nil {
+						GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
+						return false
+					}
+
+					if !reflect.DeepEqual(expectedCfgMapData, unmarshaledCfgMapData) {
 						GinkgoWriter.Printf(
 							"ConfigMap data does not match, Got: %v\nExpected: %v\n",
-							configMap.Data,
+							unmarshaledCfgMapData,
 							expectedCfgMapData,
 						)
 						return false

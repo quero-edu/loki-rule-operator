@@ -47,14 +47,18 @@ type LokiRuleReconciler struct {
 func (r *LokiRuleReconciler) newRuleHandler(
 	rule *querocomv1alpha1.LokiRule,
 ) error {
-	configMapLabels := lokirule.GenerateLokiRuleLabels(rule)
+	labels := map[string]string{
+		"app.kubernetes.io/component":  "loki-rule-cfg",
+		"app.kubernetes.io/managed-by": "loki-rule-operator",
+	}
+
 	options := k8sutils.Options{Ctx: context.Background(), Logger: r.Logger}
 
 	_, err := k8sutils.CreateConfigMap(
 		r.Client,
 		r.LokiNamespace,
 		r.LokiRuleConfigMapName,
-		configMapLabels,
+		labels,
 		options,
 	)
 
@@ -63,11 +67,17 @@ func (r *LokiRuleReconciler) newRuleHandler(
 		return err
 	}
 
+	ruleData, err := lokirule.GenerateRuleConfigMapFile(rule)
+	if err != nil {
+		r.Logger.Error(err, "Failed to generate rule groups")
+		return err
+	}
+
 	_, err = k8sutils.AddToConfigMap(
 		r.Client,
 		r.LokiNamespace,
 		r.LokiRuleConfigMapName,
-		rule.Spec.Data,
+		ruleData,
 		options,
 	)
 
@@ -128,15 +138,20 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 				r.Logger.Error(err, "Failed to get Loki statefulSet")
 			}
 
+			configMapFileToRemove, err := lokirule.GenerateRuleConfigMapFile(deletedInstance)
+			if err != nil {
+				r.Logger.Error(err, "Failed to generate rule groups")
+			}
+
 			_, err = k8sutils.RemoveFromConfigMap(
 				r.Client,
 				r.LokiNamespace,
 				r.LokiRuleConfigMapName,
-				deletedInstance.Spec.Data,
+				configMapFileToRemove,
 				options,
 			)
 			if err != nil {
-				options.Logger.Error(err, "Failed to ensure configMap exists")
+				r.Logger.Error(err, "Failed to ensure configMap exists")
 			}
 
 			err = k8sutils.MountConfigMap(

@@ -20,6 +20,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type RuleGroup struct {
+	Name  string `json:"name,omitempty" yaml:"name,omitempty"`
+	Rules []Rule `json:"rules,omitempty" yaml:"rules,omitempty"`
+}
+
 // Rule defines a rule for a LokiRule
 type Rule struct {
 	Alert       string            `json:"alert,omitempty" yaml:"alert,omitempty"`
@@ -34,7 +39,7 @@ type Rule struct {
 type LokiRuleSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Rules []Rule `json:"rules,omitempty" yaml:"rules"`
+	Groups []RuleGroup `json:"groups,omitempty" yaml:"groups"`
 }
 
 // LokiRuleStatus defines the observed state of LokiRule

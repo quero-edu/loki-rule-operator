@@ -116,10 +116,15 @@ var _ = Describe("LokiRuleController", func() {
 						Namespace: namespaceName,
 					},
 					Spec: querocomv1alpha1.LokiRuleSpec{
-						Rules: []querocomv1alpha1.Rule{
+						Groups: []querocomv1alpha1.RuleGroup{
 							{
-								Record: "test_record",
-								Expr:   "test_expr",
+								Name: "test_group",
+								Rules: []querocomv1alpha1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr",
+									},
+								},
 							},
 						},
 					},
@@ -157,7 +162,7 @@ var _ = Describe("LokiRuleController", func() {
 					expectedCfgMapData := map[string]interface{}{
 						"groups": []interface{}{
 							map[string]interface{}{
-								"name": "default-test-lokirule",
+								"name": "test_group",
 								"rules": []interface{}{
 									map[string]interface{}{
 										"record": "test_record",
@@ -235,7 +240,7 @@ var _ = Describe("LokiRuleController", func() {
 					}
 
 					// generated from lokirule.data
-					const expectedAnnotationHash = "e8411d307c60f499337357a3164b3e75bb73a7a91b9139fad6ac437277a312ae"
+					const expectedAnnotationHash = "3866fad9d3a968d9a28648397af7c83d57b93e629652b1962631eae56790f75a"
 					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", configMapName)
 
 					if resultStatefulSet.Spec.Template.Annotations == nil {
@@ -263,10 +268,15 @@ var _ = Describe("LokiRuleController", func() {
 							Namespace: namespaceName,
 						},
 						Spec: querocomv1alpha1.LokiRuleSpec{
-							Rules: []querocomv1alpha1.Rule{
+							Groups: []querocomv1alpha1.RuleGroup{
 								{
-									Record: "test_record2",
-									Expr:   "test_expr2",
+									Name: "default-test-lokirule-2",
+									Rules: []querocomv1alpha1.Rule{
+										{
+											Record: "test_record2",
+											Expr:   "test_expr2",
+										},
+									},
 								},
 							},
 						},
@@ -307,7 +317,7 @@ var _ = Describe("LokiRuleController", func() {
 						lokiRuleOneExpectedCfgMapData := map[string]interface{}{
 							"groups": []interface{}{
 								map[string]interface{}{
-									"name": "default-test-lokirule",
+									"name": "test_group",
 									"rules": []interface{}{
 										map[string]interface{}{
 											"record": "test_record",
@@ -388,10 +398,15 @@ var _ = Describe("LokiRuleController", func() {
 						Namespace: namespaceName,
 					},
 					Spec: querocomv1alpha1.LokiRuleSpec{
-						Rules: []querocomv1alpha1.Rule{
+						Groups: []querocomv1alpha1.RuleGroup{
 							{
-								Record: "test_record",
-								Expr:   "test_expr",
+								Name: "test_group",
+								Rules: []querocomv1alpha1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr",
+									},
+								},
 							},
 						},
 					},
@@ -402,10 +417,15 @@ var _ = Describe("LokiRuleController", func() {
 						Namespace: namespaceName,
 					},
 					Spec: querocomv1alpha1.LokiRuleSpec{
-						Rules: []querocomv1alpha1.Rule{
+						Groups: []querocomv1alpha1.RuleGroup{
 							{
-								Record: "test_record2",
-								Expr:   "test_expr2",
+								Name: "test_group2",
+								Rules: []querocomv1alpha1.Rule{
+									{
+										Record: "test_record2",
+										Expr:   "test_expr2",
+									},
+								},
 							},
 						},
 					},
@@ -449,7 +469,7 @@ var _ = Describe("LokiRuleController", func() {
 					expectedCfgMapData := map[string]interface{}{
 						"groups": []interface{}{
 							map[string]interface{}{
-								"name": "default-test2-lokirule",
+								"name": "test_group2",
 								"rules": []interface{}{
 									map[string]interface{}{
 										"record": "test_record2",
@@ -488,10 +508,15 @@ var _ = Describe("LokiRuleController", func() {
 						Namespace: namespaceName,
 					},
 					Spec: querocomv1alpha1.LokiRuleSpec{
-						Rules: []querocomv1alpha1.Rule{
+						Groups: []querocomv1alpha1.RuleGroup{
 							{
-								Record: "test_record_update",
-								Expr:   "test_expr_update",
+								Name: "test_group",
+								Rules: []querocomv1alpha1.Rule{
+									{
+										Record: "test_record_update",
+										Expr:   "test_expr_update",
+									},
+								},
 							},
 						},
 					},
@@ -499,7 +524,7 @@ var _ = Describe("LokiRuleController", func() {
 				err := k8sClient.Create(context.TODO(), lokiRule)
 				Expect(err).To(BeNil())
 
-				lokiRule.Spec.Rules[0].Expr = "test_expr_update2"
+				lokiRule.Spec.Groups[0].Rules[0].Expr = "test_expr_update2"
 
 				err = k8sClient.Update(context.TODO(), lokiRule)
 				Expect(err).To(BeNil())

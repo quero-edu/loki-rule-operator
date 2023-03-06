@@ -24,10 +24,15 @@ var _ = Describe("TestGenerateRuleConfigMapFile", func() {
 				Namespace: "test-namespace",
 			},
 			Spec: querocomv1alpha1.LokiRuleSpec{
-				Rules: []querocomv1alpha1.Rule{
+				Groups: []querocomv1alpha1.RuleGroup{
 					{
-						Record: "test_record",
-						Expr:   "test_expr",
+						Name: "test-namespace-test-rule",
+						Rules: []querocomv1alpha1.Rule{
+							{
+								Record: "test_record",
+								Expr:   "test_expr",
+							},
+						},
 					},
 				},
 			},

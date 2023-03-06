@@ -7,36 +7,18 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func generateRuleGroups(rule *querocomv1alpha1.LokiRule, ruleGroupName string) (string, error) {
-	ruleFileMap := map[string][]map[string]interface{}{
-		"groups": {
-			{
-				"name":  ruleGroupName,
-				"rules": rule.Spec.Rules,
-			},
-		},
-	}
-
-	yamlfiedGroups, err := yaml.Marshal(ruleFileMap)
-	if err != nil {
-		return "", err
-	}
-
-	return string(yamlfiedGroups), err
-}
-
 func GenerateRuleConfigMapFile(rule *querocomv1alpha1.LokiRule) (map[string]string, error) {
-	ruleGroupName := fmt.Sprintf("%s-%s", rule.Namespace, rule.Name)
+	fileName := fmt.Sprintf("%s-%s.yaml", rule.Namespace, rule.Name)
 
-	groups, err := generateRuleGroups(rule, ruleGroupName)
+	marshaledGroupData, err := yaml.Marshal(rule.Spec)
 	if err != nil {
 		return nil, err
 	}
 
-	fileName := fmt.Sprintf("%s.yaml", ruleGroupName)
+	stringifiedGroupData := string(marshaledGroupData)
 
 	ruleFile := map[string]string{
-		fileName: groups,
+		fileName: stringifiedGroupData,
 	}
 
 	return ruleFile, nil

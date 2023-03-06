@@ -35,28 +35,35 @@ spec:
           spec:
             description: LokiRuleSpec defines the desired state of LokiRule
             properties:
-              rules:
+              groups:
                 description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                   Important: Run "make" to regenerate code after modifying this file'
                 items:
-                  description: Rule defines a rule for a LokiRule
                   properties:
-                    alert:
+                    name:
                       type: string
-                    annotations:
-                      additionalProperties:
-                        type: string
-                      type: object
-                    expr:
-                      type: string
-                    for:
-                      type: string
-                    labels:
-                      additionalProperties:
-                        type: string
-                      type: object
-                    record:
-                      type: string
+                    rules:
+                      items:
+                        description: Rule defines a rule for a LokiRule
+                        properties:
+                          alert:
+                            type: string
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          expr:
+                            type: string
+                          for:
+                            type: string
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          record:
+                            type: string
+                        type: object
+                      type: array
                   type: object
                 type: array
             type: object

@@ -10,7 +10,13 @@ metadata:
     app.kubernetes.io/created-by: operators
   name: lokirule-sample-2
 spec:
-  name: lokirule-sample
-  data:
-    test: |-
-      Update test
+  groups:
+    - name: my-rule-group
+      rules:
+        - alert: HighRequestLatency
+          expr: rate({job="myjob"} |~ "request"[5m]) > 0.6
+          for: 10m
+          labels:
+            severity: page
+          annotations:
+            summary: High request latency

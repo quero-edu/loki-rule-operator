@@ -62,7 +62,7 @@ func main() {
 	var lokiLabelSelector string
 	var lokiNamespace string
 	var lokiRuleMountPath string
-	var lokiUrl string
+	var lokiURL string
 
 	flag.BoolVar(
 		&enableLeaderElection,
@@ -119,7 +119,7 @@ func main() {
 		"The path where the operator will mount the loki rules configmap.",
 	)
 	flag.StringVar(
-		&lokiUrl,
+		&lokiURL,
 		"loki-url",
 		"",
 		"The Url to send validation request for query.",
@@ -159,7 +159,7 @@ func main() {
 		LokiLabelSelector:     lokiSelector,
 		LokiNamespace:         lokiNamespace,
 		LokiRuleConfigMapName: "loki-rule-cfg",
-		LokiUrl:               lokiUrl,
+		lokiURL:               lokiURL,
 	}).SetupWithManager(mgr); err != nil {
 		log.Error(err, "unable to create controller", "controller", "LokiRule")
 		os.Exit(1)

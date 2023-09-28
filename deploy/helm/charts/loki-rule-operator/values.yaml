@@ -40,6 +40,6 @@ lokiRuleOperator:
   leaderElection:
     enabled: true
     id: loki-rule-operator.quero.com
-  lokiUrl: ""
+  lokiURL: ""
 
 keepCrds: false

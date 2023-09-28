@@ -10,12 +10,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func GenerateRuleConfigMapFile(rule *querocomv1alpha1.LokiRule, lokiUrl string) (map[string]string, error) {
+func GenerateRuleConfigMapFile(rule *querocomv1alpha1.LokiRule, lokiURL string) (map[string]string, error) {
 	fileName := fmt.Sprintf("%s-%s.yaml", rule.Namespace, rule.Name)
 
 	for _, group := range rule.Spec.Groups {
 		for _, ruleGroup := range group.Rules {
-			if !ExprValid(ruleGroup.Expr, lokiUrl) {
+			if !ExprValid(ruleGroup.Expr, lokiURL) {
 				return nil, fmt.Errorf("have an error on your LogQL %s", ruleGroup.Expr)
 			}
 		}
@@ -35,10 +35,10 @@ func GenerateRuleConfigMapFile(rule *querocomv1alpha1.LokiRule, lokiUrl string) 
 	return ruleFile, nil
 }
 
-func ExprValid(expr string, lokiUrl string) bool {
+func ExprValid(expr string, lokiURL string) bool {
 
 	query := url.QueryEscape(expr)
-	url := lokiUrl + "/loki/api/v1/query?query=" + query
+	url := lokiURL + "/loki/api/v1/query?query=" + query
 	resp, err := http.Get(url)
 
 	if err != nil {

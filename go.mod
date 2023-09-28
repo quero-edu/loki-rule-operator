@@ -10,7 +10,10 @@ require (
 	sigs.k8s.io/controller-runtime v0.13.0
 )
 
-require github.com/go-logfmt/logfmt v0.5.1 // indirect
+require (
+	github.com/go-logfmt/logfmt v0.5.1 // indirect
+	github.com/jarcoal/httpmock v1.3.1 // indirect
+)
 
 require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect

@@ -35,6 +35,7 @@ spec:
             - -loki-label-selector={{ .Values.lokiRuleOperator.lokiLabelSelector }}
             - -loki-namespace={{ .Values.lokiRuleOperator.lokiNamespace }}
             - -loki-rule-mount-path={{ .Values.lokiRuleOperator.lokiRuleMountPath }}
+            - -loki-url={{ .Values.lokiRuleOperator.lokiUrl }}
             {{- if .Values.lokiRuleOperator.logLevel }}
             - -log-level={{ .Values.lokiRuleOperator.logLevel }}
             {{- end }}

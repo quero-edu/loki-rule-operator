@@ -1,9 +1,11 @@
 package lokirule
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/jarcoal/httpmock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
@@ -18,6 +20,12 @@ func TestLokiRule(t *testing.T) {
 
 var _ = Describe("TestGenerateRuleConfigMapFile", func() {
 	It("should generate a valid rule file", func() {
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
+
+		httpmock.RegisterResponder("GET", `=~url-do-loki/.*`,
+			httpmock.NewStringResponder(200, `{"status":"success"}`))
+
 		rule := &querocomv1alpha1.LokiRule{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-rule",
@@ -30,7 +38,7 @@ var _ = Describe("TestGenerateRuleConfigMapFile", func() {
 						Rules: []querocomv1alpha1.Rule{
 							{
 								Record: "test_record",
-								Expr:   "test_expr",
+								Expr:   "{test=test}",
 							},
 						},
 					},
@@ -46,14 +54,14 @@ var _ = Describe("TestGenerateRuleConfigMapFile", func() {
 					"rules": []interface{}{
 						map[interface{}]interface{}{
 							"record": "test_record",
-							"expr":   "test_expr",
+							"expr":   "{test=test}",
 						},
 					},
 				},
 			},
 		}
 
-		ruleFile, err := GenerateRuleConfigMapFile(rule)
+		ruleFile, err := GenerateRuleConfigMapFile(rule, "url-do-loki")
 		Expect(err).To(BeNil())
 
 		parsedKeys := []string{}
@@ -80,5 +88,36 @@ var _ = Describe("TestGenerateRuleConfigMapFile", func() {
 		)
 
 		Expect(reflect.DeepEqual(parsedRuleFileContent, expectedParsedYamlContent)).To(BeTrue())
+	})
+
+	It("should generate an erro of Expr", func() {
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
+
+		httpmock.RegisterResponder("GET", `=~url-do-loki/.*`,
+			httpmock.NewStringResponder(500, `{"status":"fail"}`))
+
+		rule := &querocomv1alpha1.LokiRule{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-rule",
+				Namespace: "test-namespace",
+			},
+			Spec: querocomv1alpha1.LokiRuleSpec{
+				Groups: []querocomv1alpha1.RuleGroup{
+					{
+						Name: "test-namespace-test-rule",
+						Rules: []querocomv1alpha1.Rule{
+							{
+								Record: "test_record",
+								Expr:   "INVALID_EXPR",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		_, err := GenerateRuleConfigMapFile(rule, "url-do-loki")
+		Expect(err).To(Equal(fmt.Errorf("have an error on your LogQL %s", rule.Spec.Groups[0].Rules[0].Expr)))
 	})
 })

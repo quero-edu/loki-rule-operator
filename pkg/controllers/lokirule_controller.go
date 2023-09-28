@@ -42,6 +42,7 @@ type LokiRuleReconciler struct {
 	LokiLabelSelector     *metav1.LabelSelector
 	LokiNamespace         string
 	LokiRuleConfigMapName string
+	LokiUrl               string
 }
 
 func (r *LokiRuleReconciler) newRuleHandler(
@@ -67,7 +68,7 @@ func (r *LokiRuleReconciler) newRuleHandler(
 		return err
 	}
 
-	ruleData, err := lokirule.GenerateRuleConfigMapFile(rule)
+	ruleData, err := lokirule.GenerateRuleConfigMapFile(rule, r.LokiUrl)
 	if err != nil {
 		r.Logger.Error(err, "Failed to generate rule groups")
 		return err
@@ -138,7 +139,7 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 				r.Logger.Error(err, "Failed to get Loki statefulSet")
 			}
 
-			configMapFileToRemove, err := lokirule.GenerateRuleConfigMapFile(deletedInstance)
+			configMapFileToRemove, err := lokirule.GenerateRuleConfigMapFile(deletedInstance, r.LokiUrl)
 			if err != nil {
 				r.Logger.Error(err, "Failed to generate rule groups")
 			}

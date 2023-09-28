@@ -159,7 +159,7 @@ func main() {
 		LokiLabelSelector:     lokiSelector,
 		LokiNamespace:         lokiNamespace,
 		LokiRuleConfigMapName: "loki-rule-cfg",
-		lokiURL:               lokiURL,
+		LokiURL:               lokiURL,
 	}).SetupWithManager(mgr); err != nil {
 		log.Error(err, "unable to create controller", "controller", "LokiRule")
 		os.Exit(1)

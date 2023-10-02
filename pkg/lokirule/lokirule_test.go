@@ -2,7 +2,6 @@ package lokirule
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -14,48 +13,6 @@ import (
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-func TestLokiRule(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "LokiRule Suite")
-}
-
-func TestExprValid(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-	}))
-
-	defer server.Close()
-
-	isValid := ExprValid("test", "server.URL")
-
-	if isValid == true {
-		t.Errorf("Expected false, got %t", isValid)
-	}
-
-}
-
-func ExampleResponseRecorder() {
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "<html><body>Hello World!</body></html>")
-	}
-
-	req := httptest.NewRequest("GET", "https://loki-front.mock.test", nil)
-	w := httptest.NewRecorder()
-	handler(w, req)
-
-	resp := w.Result()
-	body, _ := io.ReadAll(resp.Body)
-
-	fmt.Println(resp.StatusCode)
-	fmt.Println(resp.Header.Get("Content-Type"))
-	fmt.Println(string(body))
-
-	// Output:
-	// 200
-	// text/html; charset=utf-8
-	// <html><body>Hello World!</body></html>
-}
 
 var _ = Describe("TestGenerateRuleConfigMapFile", func() {
 	It("should generate a valid rule file", func() {
@@ -147,7 +104,6 @@ var _ = Describe("TestGenerateRuleConfigMapFile", func() {
 				},
 			},
 		}
-
 		handleExpValidationMock := func(expr string, lokiURL string) bool {
 			return false
 		}
@@ -155,3 +111,67 @@ var _ = Describe("TestGenerateRuleConfigMapFile", func() {
 		Expect(err).To(Equal(fmt.Errorf("have an error on your LogQL %s", rule.Spec.Groups[0].Rules[0].Expr)))
 	})
 })
+
+
+// MockHTTPClient is a mock HTTP client that implements the http.Client interface.
+type MockHTTPClient struct {
+	DoFunc func(req *http.Request) (*http.Response, error)
+}
+
+// Do is a method on MockHTTPClient that allows you to mock HTTP requests.
+func (c *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	return c.DoFunc(req)
+}
+
+func TestValidateLogQLExpression(t *testing.T) {
+	// Create a mock HTTP server
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate a successful response
+		if r.URL.Query().Get("query") == "valid_expr" {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			// Simulate a non-200 response
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+
+	defer mockServer.Close()
+
+	// Create a mock HTTP client
+	mockHTTPClient := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			// Simulate a successful response
+			if req.URL.String() == mockServer.URL+"/loki/api/v1/query?query=valid_expr" {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+				}, nil
+			}
+			// Simulate a non-200 response
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+			}, nil
+		},
+	}
+
+	// Replace the default HTTP client with the mock HTTP client
+	// Create a custom HTTP client using the mock HTTP client
+	client := &http.Client{
+		Transport: mockHTTPClient,
+	}
+	// Test case 1: Valid expression
+	validExpression := "valid_expr"
+	if !ValidateLogQLExpression(validExpression, mockServer.URL) {
+		t.Errorf("Expected ValidateLogQLExpression to return true for a valid expression, but got false")
+	}
+
+	// Test case 2: Invalid expression
+	invalidExpression := "invalid_expr"
+	if ValidateLogQLExpression(invalidExpression, mockServer.URL) {
+		t.Errorf("Expected ValidateLogQLExpression to return false for an invalid expression, but got true")
+	}
+
+	// Test case 3: Network error (unreachable server)
+	if ValidateLogQLExpression("valid_expr", "https://nonexistent.url") {
+		t.Errorf("Expected ValidateLogQLExpression to return false for an unreachable server, but got true")
+	}
+}

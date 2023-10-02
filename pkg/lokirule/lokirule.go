@@ -12,18 +12,20 @@ import (
 
 type handleExpValidation func(expr string, lokiURL string) bool
 
-func ExprValid(expr string, lokiURL string) bool {
+func ValidateLogQLExpression(expr string, lokiURL string) bool {
 
 	query := url.QueryEscape(expr)
 	url := lokiURL + "/loki/api/v1/query?query=" + query
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+
+	res, err := http.DefaultClient.Do(req)
 
 	if err != nil {
 		log.Fatal(err)
 		return false
 	}
 
-	if resp.StatusCode != 200 {
+	if res.StatusCode != 200 {
 		return false
 	}
 
@@ -34,7 +36,7 @@ func GenerateRuleConfigMapFile(rule *querocomv1alpha1.LokiRule, expValidation ha
 	fileName := fmt.Sprintf("%s-%s.yaml", rule.Namespace, rule.Name)
 
 	if expValidation == nil {
-		expValidation = ExprValid
+		expValidation = ValidateLogQLExpression
 	}
 
 	for _, group := range rule.Spec.Groups {

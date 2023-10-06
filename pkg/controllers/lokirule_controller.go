@@ -108,13 +108,23 @@ func getLokiStatefulSet(
 	return statefulSet, nil
 }
 
+var handleValidateLogQLResult = func() bool {
+	valid, err := ValidateLogQLOnServerFunc("http://localhost:3100", "{cluster=\"prod-nv-cluster\"}")
+
+	if err != nil {
+		return false
+	}
+
+	return valid
+}
+
 func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return true
+			return handleValidateLogQLResult()
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return true
+			return handleValidateLogQLResult()
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			options := k8sutils.Options{Ctx: context.TODO(), Logger: r.Logger}

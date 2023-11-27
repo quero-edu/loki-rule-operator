@@ -122,7 +122,7 @@ func main() {
 		&lokiURL,
 		"loki-url",
 		"",
-		"URL to send validation request.",
+		"Loki server URL.",
 	)
 	flag.Parse()
 

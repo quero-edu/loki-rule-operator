@@ -1,176 +1,178 @@
 suite: test deployment
 templates:
-  - deployment.yaml
+- deployment.yaml
 
 tests:
-  - it: should set deployment name and labels according to .tpl
-    values:
-      - ./minimal_values.yaml
-    release:
-      name: my-release
-    asserts:
-      - equal:
-          path: metadata.name
-          value: "my-release-loki-rule-operator"
-      - equal:
-          path: metadata.labels.[app.kubernetes.io/name]
-          value: "loki-rule-operator"
-      - equal:
-          path: metadata.labels.[app.kubernetes.io/instance]
-          value: "my-release"
-      - equal:
-          path: metadata.labels.[app.kubernetes.io/managed-by]
-          value: "Helm"
-      - matchRegex:
-          path: metadata.labels.[app.kubernetes.io/version]
-          pattern: "[0-9]+\\.[0-9]+\\.[0-9]+"
-      - matchRegex:
-          path: metadata.labels.[helm.sh/chart]
-          pattern: "loki-rule-operator-[0-9]+\\.[0-9]+\\.[0-9]+"
-  - it: should set selectorLabels according to pod template labels
-    values:
-      - ./minimal_values.yaml
-    release:
-      name: my-release
-    asserts:
-      - equal:
-          path: spec.selector.matchLabels.[app.kubernetes.io/name]
-          value: "loki-rule-operator"
-      - equal:
-          path: spec.selector.matchLabels.[app.kubernetes.io/instance]
-          value: "my-release"
-      - equal:
-          path: spec.template.metadata.labels.[app.kubernetes.io/name]
-          value: "loki-rule-operator"
-      - equal:
-          path: spec.template.metadata.labels.[app.kubernetes.io/instance]
-          value: "my-release"
-  - it: should configure pod image
-    values:
-      - ./minimal_values.yaml
-    set:
-      image:
-        repository: quay.io/quero/loki-rule-operator
-        tag: 0.0.1
-        pullPolicy: Always
-      imagePullSecrets:
-        - name: my-secret
-    asserts:
-      - equal:
-          path: spec.template.spec.containers[0].image
-          value: "quay.io/quero/loki-rule-operator:0.0.1"
-      - equal:
-          path: spec.template.spec.containers[0].imagePullPolicy
-          value: "Always"
-      - equal:
-          path: spec.template.spec.imagePullSecrets
-          value:
-            - name: my-secret
-  - it: should configure app options
-    values:
-      - ./minimal_values.yaml
-    set:
-      lokiRuleOperator:
-        lokiLabelSelector: "app.kubernetes.io/name=loki,app.kubernetes.io/instance=my-loki"
-        lokiNamespace: "loki"
-        lokiRuleMountPath: "/var/loki"
-        logLevel: debug
-        metrics:
-          port: 9090
-        healthProbe:
-          port: 9091
-        leaderElection:
-          enabled: true
-          id: my-id
-    release:
-      name: "my-release"
-      namespace: "helm-test"
-    asserts:
-      - equal:
-          path: spec.template.spec.containers[0].args
-          value:
-            - "-loki-label-selector=app.kubernetes.io/name=loki,app.kubernetes.io/instance=my-loki"
-            - "-loki-namespace=loki"
-            - "-loki-rule-mount-path=/var/loki"
-            - "-log-level=debug"
-            - "-metrics-bind-address=:9090"
-            - "-health-probe-bind-address=:9091"
-            - "-leader-elect=true"
-            - "-leader-election-namespace=helm-test"
-            - "-leader-election-id=my-id"
-  - it: should configure globalOptions
-    values:
-      - ./minimal_values.yaml
-    set:
-      resources:
-        limits:
-          cpu: 100m
-          memory: 64Mi
-        requests:
-          cpu: 50m
-          memory: 32Mi
-      podAnnotations:
-        foo: bar
-      nodeSelector:
-        node: test
-      tolerations:
-        - key: "key"
-          operator: "Equal"
-          value: "value"
-          effect: "NoSchedule"
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                - key: kubernetes.io/e2e-az-name
-                  operator: In
-                  values:
-                    - e2e-az1
-                    - e2e-az2
-    asserts:
-      - equal:
-          path: spec.template.metadata.annotations.foo
-          value: bar
-      - equal:
-          path: spec.template.spec.containers[0].resources.limits.cpu
-          value: 100m
-      - equal:
-          path: spec.template.spec.containers[0].resources.limits.memory
-          value: 64Mi
-      - equal:
-          path: spec.template.spec.containers[0].resources.requests.cpu
-          value: 50m
-      - equal:
-          path: spec.template.spec.containers[0].resources.requests.memory
-          value: 32Mi
-      - equal:
-          path: spec.template.spec.nodeSelector
-          value:
-            node: test
-      - equal:
-          path: spec.template.spec.tolerations
-          value:
-            - key: "key"
-              operator: "Equal"
-              value: "value"
-              effect: "NoSchedule"
-      - equal:
-          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0]
-          value:
-            key: kubernetes.io/e2e-az-name
-            operator: In
-            values:
+- it: should set deployment name and labels according to .tpl
+  values:
+  - ./minimal_values.yaml
+  release:
+    name: my-release
+  asserts:
+  - equal:
+      path: metadata.name
+      value: "my-release-loki-rule-operator"
+  - equal:
+      path: metadata.labels["app.kubernetes.io/name"]
+      value: "loki-rule-operator"
+  - equal:
+      path: metadata.labels["app.kubernetes.io/instance"]
+      value: "my-release"
+  - equal:
+      path: metadata.labels["app.kubernetes.io/managed-by"]
+      value: "Helm"
+  - matchRegex:
+      path: metadata.labels["app.kubernetes.io/version"]
+      pattern: "[0-9]+\\.[0-9]+\\.[0-9]+"
+  - matchRegex:
+      path: metadata.labels["helm.sh/chart"]
+      pattern: "loki-rule-operator-[0-9]+\\.[0-9]+\\.[0-9]+"
+- it: should set selectorLabels according to pod template labels
+  values:
+  - ./minimal_values.yaml
+  release:
+    name: my-release
+  asserts:
+  - equal:
+      path: spec.selector.matchLabels["app.kubernetes.io/name"]
+      value: "loki-rule-operator"
+  - equal:
+      path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+      value: "my-release"
+  - equal:
+      path: spec.template.metadata.labels["app.kubernetes.io/name"]
+      value: "loki-rule-operator"
+  - equal:
+      path: spec.template.metadata.labels["app.kubernetes.io/instance"]
+      value: "my-release"
+- it: should configure pod image
+  values:
+  - ./minimal_values.yaml
+  set:
+    image:
+      repository: quay.io/quero/loki-rule-operator
+      tag: 0.0.1
+      pullPolicy: Always
+    imagePullSecrets:
+    - name: my-secret
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: "quay.io/quero/loki-rule-operator:0.0.1"
+  - equal:
+      path: spec.template.spec.containers[0].imagePullPolicy
+      value: "Always"
+  - equal:
+      path: spec.template.spec.imagePullSecrets
+      value:
+      - name: my-secret
+- it: should configure app options
+  values:
+  - ./minimal_values.yaml
+  set:
+    lokiRuleOperator:
+      lokiLabelSelector: "app.kubernetes.io/name=loki,app.kubernetes.io/instance=my-loki"
+      lokiNamespace: "loki"
+      lokiRuleMountPath: "/var/loki"
+      lokiURL: "loki.url"
+      logLevel: debug
+      metrics:
+        port: 9090
+      healthProbe:
+        port: 9091
+      leaderElection:
+        enabled: true
+        id: my-id
+  release:
+    name: "my-release"
+    namespace: "helm-test"
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].args
+      value:
+      - "-loki-label-selector=app.kubernetes.io/name=loki,app.kubernetes.io/instance=my-loki"
+      - "-loki-namespace=loki"
+      - "-loki-rule-mount-path=/var/loki"
+      - "-loki-url=loki.url"
+      - "-log-level=debug"
+      - "-metrics-bind-address=:9090"
+      - "-health-probe-bind-address=:9091"
+      - "-leader-elect=true"
+      - "-leader-election-namespace=helm-test"
+      - "-leader-election-id=my-id"
+- it: should configure globalOptions
+  values:
+  - ./minimal_values.yaml
+  set:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 32Mi
+    podAnnotations:
+      foo: bar
+    nodeSelector:
+      node: test
+    tolerations:
+    - key: "key"
+      operator: "Equal"
+      value: "value"
+      effect: "NoSchedule"
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: kubernetes.io/e2e-az-name
+              operator: In
+              values:
               - e2e-az1
               - e2e-az2
-  - it: should set service account name
-    values:
-      - ./minimal_values.yaml
-    set:
-      serviceAccount:
-        create: true
-        name: my-service-account
-    asserts:
-      - equal:
-          path: spec.template.spec.serviceAccountName
-          value: my-service-account
+  asserts:
+  - equal:
+      path: spec.template.metadata.annotations.foo
+      value: bar
+  - equal:
+      path: spec.template.spec.containers[0].resources.limits.cpu
+      value: 100m
+  - equal:
+      path: spec.template.spec.containers[0].resources.limits.memory
+      value: 64Mi
+  - equal:
+      path: spec.template.spec.containers[0].resources.requests.cpu
+      value: 50m
+  - equal:
+      path: spec.template.spec.containers[0].resources.requests.memory
+      value: 32Mi
+  - equal:
+      path: spec.template.spec.nodeSelector
+      value:
+        node: test
+  - equal:
+      path: spec.template.spec.tolerations
+      value:
+      - key: "key"
+        operator: "Equal"
+        value: "value"
+        effect: "NoSchedule"
+  - equal:
+      path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0]
+      value:
+        key: kubernetes.io/e2e-az-name
+        operator: In
+        values:
+        - e2e-az1
+        - e2e-az2
+- it: should set service account name
+  values:
+  - ./minimal_values.yaml
+  set:
+    serviceAccount:
+      create: true
+      name: my-service-account
+  asserts:
+  - equal:
+      path: spec.template.spec.serviceAccountName
+      value: my-service-account

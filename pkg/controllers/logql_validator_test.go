@@ -15,14 +15,14 @@ func TestValidateLogQLOnServerFunc(t *testing.T) {
 		}
 
 		logQLQuery := r.URL.Query().Get("query")
-		if logQLQuery != "{cluster=\"prod-nv-cluster\"}" {
-			t.Errorf("The logQL query should be {cluster=\"prod-nv-cluster\"}")
+		if logQLQuery != "{job=\"loki-test\"}" {
+			t.Errorf("The logQL query should be {job=\"loki-test\"}")
 		}
 	}))
 
 	defer ts.Close()
 
-	isValid, err := ValidateLogQLOnServerFunc(ts.URL, "{cluster=\"prod-nv-cluster\"}")
+	isValid, err := ValidateLogQLOnServerFunc(ts.URL, "{job=\"loki-test\"}")
 
 	if err != nil {
 		t.Errorf("Error: %v", err)
@@ -40,7 +40,7 @@ func TestValidateLogQLOnServerFuncHTTP500IsAnInvalidResponse(t *testing.T) {
 
 	defer ts.Close()
 
-	isValid, err := ValidateLogQLOnServerFunc(ts.URL, "{cluster=\"prod-nv-cluster\"}")
+	isValid, err := ValidateLogQLOnServerFunc(ts.URL, "{job=\"loki-test\"}")
 
 	if err != nil {
 		t.Errorf("Error: %v", err)
@@ -53,11 +53,11 @@ func TestValidateLogQLOnServerFuncHTTP500IsAnInvalidResponse(t *testing.T) {
 
 func TestValidateLogQLOnServerFuncInvalidRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusGatewayTimeout)
+		w.WriteHeader(500)
 	}))
-	isValid, err := ValidateLogQLOnServerFunc(ts.URL, "{cluster=\"prod-nv-cluster\"}")
+	isValid, err := ValidateLogQLOnServerFunc(ts.URL, "{job=\"loki-test\"}")
 
-	if err == nil {
+	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 

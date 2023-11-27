@@ -22,5 +22,4 @@ func ValidateLogQLOnServerFunc(lokiURL string, logQLExpr string) (bool, error) {
 	}
 
 	return false, nil
-
 }

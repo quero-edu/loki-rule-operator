@@ -110,6 +110,9 @@ var _ = Describe("LokiRuleController", func() {
 			configMapName := "loki-rule-cfg"
 
 			BeforeEach(func() {
+				handleValidateLogQLResult = func(lokiURL string, queryStringArray []string) bool {
+					return true
+				}
 				lokiRule = &querocomv1alpha1.LokiRule{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-lokirule",

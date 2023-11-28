@@ -42,6 +42,7 @@ type LokiRuleReconciler struct {
 	LokiLabelSelector     *metav1.LabelSelector
 	LokiNamespace         string
 	LokiRuleConfigMapName string
+	LokiURL               string
 }
 
 func (r *LokiRuleReconciler) newRuleHandler(
@@ -108,13 +109,45 @@ func getLokiStatefulSet(
 	return statefulSet, nil
 }
 
+var handleValidateLogQLResult = func(lokiURL string, queryStringArray []string) bool {
+
+	for _, queryString := range queryStringArray {
+		valid, err := ValidateLogQLOnServerFunc(lokiURL, queryString)
+
+		if err != nil {
+			return false
+		}
+
+		if !valid {
+			return false
+		}
+	}
+
+	return true
+}
+
+func getStringQueryFromLokiRule(rule *querocomv1alpha1.LokiRule) []string {
+
+	var queryArray []string
+
+	for _, group := range rule.Spec.Groups {
+		for _, ruleGroup := range group.Rules {
+			queryArray = append(queryArray, ruleGroup.Expr)
+		}
+	}
+
+	return queryArray
+}
+
 func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return true
+			queryStringArray := getStringQueryFromLokiRule(e.Object.(*querocomv1alpha1.LokiRule))
+			return handleValidateLogQLResult(r.LokiURL, queryStringArray)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return true
+			queryStringArray := getStringQueryFromLokiRule(e.ObjectNew.(*querocomv1alpha1.LokiRule))
+			return handleValidateLogQLResult(r.LokiURL, queryStringArray)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			options := k8sutils.Options{Ctx: context.TODO(), Logger: r.Logger}

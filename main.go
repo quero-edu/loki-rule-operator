@@ -19,11 +19,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/quero-edu/loki-rule-operator/internal/flags"
+	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	"io"
 	"os"
 
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
-	"github.com/quero-edu/loki-rule-operator/internal/logger"
+	httputil "github.com/quero-edu/loki-rule-operator/internal/http"
 	"github.com/quero-edu/loki-rule-operator/pkg/controllers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +36,7 @@ import (
 )
 
 var (
-	scheme = runtime.NewScheme()
+	scheme           = runtime.NewScheme()
 )
 
 func init() {
@@ -63,6 +65,7 @@ func main() {
 	var lokiNamespace string
 	var lokiRuleMountPath string
 	var lokiURL string
+	var lokiHeaders flags.ArrayFlags
 
 	flag.BoolVar(
 		&enableLeaderElection,
@@ -124,6 +127,12 @@ func main() {
 		"",
 		"Loki server URL.",
 	)
+	flag.Var(
+		&lokiHeaders,
+		"loki-header",
+		"Extra header that will be sent to Loki. Format KEY=VALUE. May be repeated.",
+	)
+
 	flag.Parse()
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -155,6 +164,7 @@ func main() {
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
 		Logger:                log,
+		LokiClient:            httputil.HttpClientWithHeaders(&lokiHeaders),
 		LokiRulesPath:         lokiRuleMountPath,
 		LokiLabelSelector:     lokiSelector,
 		LokiNamespace:         lokiNamespace,

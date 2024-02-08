@@ -50,7 +50,7 @@ func TestValidateLogQLOnServerWithHeadersFunc(t *testing.T) {
 
 	defer ts.Close()
 
-	client := httputil.HttpClientWithHeaders(&flags.ArrayFlags{
+	client := httputil.ClientWithHeaders(&flags.ArrayFlags{
 		"X-Scope-Orgid=1",
 		"Authorization=something",
 	})

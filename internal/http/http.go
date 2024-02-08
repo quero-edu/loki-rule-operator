@@ -5,20 +5,20 @@ import (
 	"net/http"
 )
 
-type withHeader struct {
+type WithHeader struct {
 	http.Header
 	rt http.RoundTripper
 }
 
-func WithHeader(rt http.RoundTripper) withHeader {
+func ApplyHeader(rt http.RoundTripper) WithHeader {
 	if rt == nil {
 		rt = http.DefaultTransport
 	}
 
-	return withHeader{Header: make(http.Header), rt: rt}
+	return WithHeader{Header: make(http.Header), rt: rt}
 }
 
-func (h withHeader) RoundTrip(req *http.Request) (*http.Response, error) {
+func (h WithHeader) RoundTrip(req *http.Request) (*http.Response, error) {
 	if len(h.Header) == 0 {
 		return h.rt.RoundTrip(req)
 	}
@@ -31,10 +31,10 @@ func (h withHeader) RoundTrip(req *http.Request) (*http.Response, error) {
 	return h.rt.RoundTrip(req)
 }
 
-func HttpClientWithHeaders(extraHeaders *flags.ArrayFlags) *http.Client {
+func ClientWithHeaders(extraHeaders *flags.ArrayFlags) *http.Client {
 	client := &http.Client{}
 
-	rt := WithHeader(client.Transport)
+	rt := ApplyHeader(client.Transport)
 	pairs, err := extraHeaders.Split("=")
 	if err != nil {
 		panic(err)

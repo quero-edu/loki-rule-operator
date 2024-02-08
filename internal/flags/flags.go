@@ -1,7 +1,6 @@
 package flags
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -22,7 +21,7 @@ func (i *ArrayFlags) Split(delimiter string) (map[string]string, error) {
 
 	for _, e := range *i {
 		if !strings.Contains(e, delimiter) {
-			return nil, errors.New(fmt.Sprintf("missing delimiter '%s' in pair: '%s'", delimiter, e))
+			return nil, fmt.Errorf("missing delimiter '%s' in pair: '%s'", delimiter, e)
 		}
 
 		parts := strings.Split(e, delimiter)

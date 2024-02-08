@@ -164,7 +164,7 @@ func main() {
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
 		Logger:                log,
-		LokiClient:            httputil.HttpClientWithHeaders(&lokiHeaders),
+		LokiClient:            httputil.ClientWithHeaders(&lokiHeaders),
 		LokiRulesPath:         lokiRuleMountPath,
 		LokiLabelSelector:     lokiSelector,
 		LokiNamespace:         lokiNamespace,

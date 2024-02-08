@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	scheme           = runtime.NewScheme()
+	scheme = runtime.NewScheme()
 )
 
 func init() {

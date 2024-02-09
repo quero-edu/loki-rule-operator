@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -110,7 +111,7 @@ var _ = Describe("LokiRuleController", func() {
 			configMapName := "loki-rule-cfg"
 
 			BeforeEach(func() {
-				handleValidateLogQLResult = func(lokiURL string, queryStringArray []string) bool {
+				handleValidateLogQLResult = func(client *http.Client, lokiURL string, queryStringArray []string) bool {
 					return true
 				}
 				lokiRule = &querocomv1alpha1.LokiRule{

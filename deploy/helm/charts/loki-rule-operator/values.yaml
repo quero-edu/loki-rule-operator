@@ -41,4 +41,6 @@ lokiRuleOperator:
     enabled: true
     id: loki-rule-operator.quero.com
   lokiURL: ""
+  # Extra HTTP headers specified as HeaderName=Value which will be passed on to Loki
+  lokiHeaders: []
 keepCrds: false

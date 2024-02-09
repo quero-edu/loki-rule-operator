@@ -5,12 +5,12 @@ import (
 	"net/url"
 )
 
-func ValidateLogQLOnServerFunc(lokiURL string, logQLExpr string) (bool, error) {
+func ValidateLogQLOnServerFunc(client *http.Client, lokiURL string, logQLExpr string) (bool, error) {
 	logQLExprEscaped := url.QueryEscape(logQLExpr)
 	lokiQueryEndpoint := "/loki/api/v1/query?query=" + logQLExprEscaped
 	logQLURIWithQuery := lokiURL + lokiQueryEndpoint
 
-	response, err := http.Get(logQLURIWithQuery)
+	response, err := client.Get(logQLURIWithQuery)
 	if err != nil {
 		return false, err
 	}

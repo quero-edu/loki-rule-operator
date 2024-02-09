@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"net/http"
 
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
 	"github.com/quero-edu/loki-rule-operator/internal/logger"
@@ -38,6 +39,7 @@ type LokiRuleReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
 	Logger                logger.Logger
+	LokiClient            *http.Client
 	LokiRulesPath         string
 	LokiLabelSelector     *metav1.LabelSelector
 	LokiNamespace         string
@@ -109,10 +111,10 @@ func getLokiStatefulSet(
 	return statefulSet, nil
 }
 
-var handleValidateLogQLResult = func(lokiURL string, queryStringArray []string) bool {
+var handleValidateLogQLResult = func(client *http.Client, lokiURL string, queryStringArray []string) bool {
 
 	for _, queryString := range queryStringArray {
-		valid, err := ValidateLogQLOnServerFunc(lokiURL, queryString)
+		valid, err := ValidateLogQLOnServerFunc(client, lokiURL, queryString)
 
 		if err != nil {
 			return false
@@ -143,11 +145,11 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			queryStringArray := getStringQueryFromLokiRule(e.Object.(*querocomv1alpha1.LokiRule))
-			return handleValidateLogQLResult(r.LokiURL, queryStringArray)
+			return handleValidateLogQLResult(r.LokiClient, r.LokiURL, queryStringArray)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			queryStringArray := getStringQueryFromLokiRule(e.ObjectNew.(*querocomv1alpha1.LokiRule))
-			return handleValidateLogQLResult(r.LokiURL, queryStringArray)
+			return handleValidateLogQLResult(r.LokiClient, r.LokiURL, queryStringArray)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			options := k8sutils.Options{Ctx: context.TODO(), Logger: r.Logger}

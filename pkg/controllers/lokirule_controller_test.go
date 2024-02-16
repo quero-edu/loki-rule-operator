@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -43,6 +44,8 @@ const lokiRuleConfigMapName = "loki-rule-cfg"
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
+var httpServer *httptest.Server
+
 var lokiStatefulSet *appsv1.StatefulSet
 var lokiRuleReconcilerInstance *LokiRuleReconciler
 
@@ -76,6 +79,10 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	httpServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
 	selector := &metav1.LabelSelector{
 		MatchLabels: labels,
 	}
@@ -88,6 +95,8 @@ var _ = BeforeSuite(func() {
 		LokiLabelSelector:     selector,
 		LokiNamespace:         lokiSTSNamespaceName,
 		LokiRuleConfigMapName: lokiRuleConfigMapName,
+		LokiURL:               httpServer.URL,
+		LokiClient:            &http.Client{},
 	}
 
 	err = (lokiRuleReconcilerInstance).SetupWithManager(mgr)
@@ -111,9 +120,6 @@ var _ = Describe("LokiRuleController", func() {
 			configMapName := "loki-rule-cfg"
 
 			BeforeEach(func() {
-				handleValidateLogQLResult = func(client *http.Client, lokiURL string, queryStringArray []string) bool {
-					return true
-				}
 				lokiRule = &querocomv1alpha1.LokiRule{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-lokirule",

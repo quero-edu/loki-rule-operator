@@ -3,7 +3,6 @@ package controllers
 import (
 	"github.com/quero-edu/loki-rule-operator/internal/flags"
 	httputil "github.com/quero-edu/loki-rule-operator/internal/http"
-	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,7 +24,7 @@ func TestValidateLogQLOnServerFunc(t *testing.T) {
 
 	defer ts.Close()
 
-	isValid, err := ValidateLogQLOnServerFunc(http.DefaultClient, ts.URL, logger.NewNopLogger(), "{job=\"loki-test\"}")
+	isValid, err := ValidateLogQLOnServerFunc(http.DefaultClient, ts.URL, "{job=\"loki-test\"}")
 
 	if err != nil {
 		t.Errorf("Error: %v", err)
@@ -55,7 +54,7 @@ func TestValidateLogQLOnServerWithHeadersFunc(t *testing.T) {
 		"X-Scope-Orgid=1",
 		"Authorization=something",
 	})
-	isValid, err := ValidateLogQLOnServerFunc(client, ts.URL, logger.NewNopLogger(), "{job=\"loki-test\"}")
+	isValid, err := ValidateLogQLOnServerFunc(client, ts.URL, "{job=\"loki-test\"}")
 
 	if err != nil {
 		t.Errorf("Error: %v", err)
@@ -73,7 +72,7 @@ func TestValidateLogQLOnServerFuncHTTP500IsAnInvalidResponse(t *testing.T) {
 
 	defer ts.Close()
 
-	isValid, err := ValidateLogQLOnServerFunc(http.DefaultClient, ts.URL, logger.NewNopLogger(), "{job=\"loki-test\"}")
+	isValid, err := ValidateLogQLOnServerFunc(http.DefaultClient, ts.URL, "{job=\"loki-test\"}")
 
 	if err != nil {
 		t.Errorf("Error: %v", err)
@@ -88,7 +87,7 @@ func TestValidateLogQLOnServerFuncInvalidRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	}))
-	isValid, err := ValidateLogQLOnServerFunc(http.DefaultClient, ts.URL, logger.NewNopLogger(), "{job=\"loki-test\"}")
+	isValid, err := ValidateLogQLOnServerFunc(http.DefaultClient, ts.URL, "{job=\"loki-test\"}")
 
 	if err != nil {
 		t.Errorf("Error: %v", err)

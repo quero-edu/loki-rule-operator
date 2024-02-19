@@ -113,13 +113,15 @@ func getLokiStatefulSet(
 
 func (r *LokiRuleReconciler) handleValidateLogQLResult(queryStringArray []string) bool {
 	for _, queryString := range queryStringArray {
-		valid, err := ValidateLogQLOnServerFunc(r.LokiClient, r.LokiURL, r.Logger, queryString)
+		valid, err := ValidateLogQLOnServerFunc(r.LokiClient, r.LokiURL, queryString)
 
 		if err != nil {
+			r.Logger.Error(err, "Failed to send request to Loki server")
 			return false
 		}
 
 		if !valid {
+			r.Logger.Warn("The query string:", queryString, "is not a valid LogQL query")
 			return false
 		}
 	}

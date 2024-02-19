@@ -66,7 +66,7 @@ func TestValidateLogQLOnServerWithHeadersFunc(t *testing.T) {
 }
 
 func TestValidateLogQLOnServerFuncHTTP500IsAnInvalidResponse(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 
@@ -84,7 +84,7 @@ func TestValidateLogQLOnServerFuncHTTP500IsAnInvalidResponse(t *testing.T) {
 }
 
 func TestValidateLogQLOnServerFuncInvalidRequest(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(500)
 	}))
 	isValid, err := ValidateLogQLOnServerFunc(http.DefaultClient, ts.URL, "{job=\"loki-test\"}")

@@ -79,7 +79,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	httpServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	httpServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -111,6 +111,10 @@ var _ = BeforeSuite(func() {
 		err := testEnv.Stop()
 		Expect(err).ToNot(HaveOccurred())
 	}()
+})
+
+var _ = AfterSuite(func() {
+	defer httpServer.Close()
 })
 
 var _ = Describe("LokiRuleController", func() {

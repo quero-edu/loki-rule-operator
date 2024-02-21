@@ -137,3 +137,9 @@ linters-settings:
       - name: unused-parameter
         severity: warning
         disabled: false
+
+issues:
+  exclude-rules:
+    - path: '(.+)_test\.go'
+      text: "dot-imports: should not use dot imports"
+

@@ -111,20 +111,20 @@ func getLokiStatefulSet(
 	return statefulSet, nil
 }
 
-var handleValidateLogQLResult = func(client *http.Client, lokiURL string, queryStringArray []string) bool {
-
+func (r *LokiRuleReconciler) handleValidateLogQLResult(queryStringArray []string) bool {
 	for _, queryString := range queryStringArray {
-		valid, err := ValidateLogQLOnServerFunc(client, lokiURL, queryString)
+		valid, err := ValidateLogQLOnServerFunc(r.LokiClient, r.LokiURL, queryString)
 
 		if err != nil {
+			r.Logger.Error(err, "Failed to send request to Loki server")
 			return false
 		}
 
 		if !valid {
+			r.Logger.Warn("The query string:", queryString, "is not a valid LogQL query")
 			return false
 		}
 	}
-
 	return true
 }
 
@@ -145,11 +145,11 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			queryStringArray := getStringQueryFromLokiRule(e.Object.(*querocomv1alpha1.LokiRule))
-			return handleValidateLogQLResult(r.LokiClient, r.LokiURL, queryStringArray)
+			return r.handleValidateLogQLResult(queryStringArray)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			queryStringArray := getStringQueryFromLokiRule(e.ObjectNew.(*querocomv1alpha1.LokiRule))
-			return handleValidateLogQLResult(r.LokiClient, r.LokiURL, queryStringArray)
+			return r.handleValidateLogQLResult(queryStringArray)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			options := k8sutils.Options{Ctx: context.TODO(), Logger: r.Logger}

@@ -78,7 +78,7 @@ func NewLogger(level string, onError func(err error, args ...interface{})) Logge
 }
 
 func NewNopLogger() Logger {
-	noopErrorCallback := func(err error, args ...interface{}) {}
+	noopErrorCallback := func(_ error, _ ...interface{}) {}
 
 	return &loggerImpl{logger: gokitlog.NewNopLogger(), errorCallback: noopErrorCallback}
 }

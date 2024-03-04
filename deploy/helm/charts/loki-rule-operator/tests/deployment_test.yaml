@@ -100,6 +100,7 @@ tests:
       - "-leader-elect=true"
       - "-leader-election-namespace=helm-test"
       - "-leader-election-id=my-id"
+      - "-only-reconcile-rules=false"
 - it: should configure app options with custom headers
   values:
     - ./minimal_values.yaml
@@ -139,6 +140,7 @@ tests:
           - '-leader-elect=true'
           - '-leader-election-namespace=helm-test'
           - '-leader-election-id=my-id'
+          - "-only-reconcile-rules=false"
 - it: should configure globalOptions
   values:
   - ./minimal_values.yaml

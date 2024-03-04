@@ -43,4 +43,5 @@ lokiRuleOperator:
   lokiURL: ""
   # Extra HTTP headers specified as HeaderName=Value which will be passed on to Loki
   lokiHeaders: []
+  onlyReconcileRules: false
 keepCrds: false

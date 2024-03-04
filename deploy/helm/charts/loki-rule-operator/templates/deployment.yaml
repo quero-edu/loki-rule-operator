@@ -53,6 +53,7 @@ spec:
             {{- if .Values.lokiRuleOperator.leaderElection.id }}
             - -leader-election-id={{ .Values.lokiRuleOperator.leaderElection.id }}
             {{- end }}
+            - -only-reconcile-rules={{ .Values.lokiRuleOperator.onlyReconcileRules | default false }}
           livenessProbe:
             httpGet:
               path: /healthz

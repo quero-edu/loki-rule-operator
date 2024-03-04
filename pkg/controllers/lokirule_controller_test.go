@@ -97,6 +97,7 @@ var _ = BeforeSuite(func() {
 		LokiRuleConfigMapName: lokiRuleConfigMapName,
 		LokiURL:               httpServer.URL,
 		LokiClient:            &http.Client{},
+		UpdateLoki:            true,
 	}
 
 	err = (lokiRuleReconcilerInstance).SetupWithManager(mgr)

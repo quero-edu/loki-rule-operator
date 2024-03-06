@@ -1,6 +1,6 @@
 module github.com/quero-edu/loki-rule-operator
 
-go 1.22
+go 1.21
 
 require (
 	github.com/onsi/ginkgo/v2 v2.14.0

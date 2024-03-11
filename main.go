@@ -19,20 +19,25 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/quero-edu/loki-rule-operator/internal/flags"
-	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	"io"
 	"os"
 
 	querocomv1alpha1 "github.com/quero-edu/loki-rule-operator/api/v1alpha1"
+	"github.com/quero-edu/loki-rule-operator/internal/flags"
 	httputil "github.com/quero-edu/loki-rule-operator/internal/http"
+	"github.com/quero-edu/loki-rule-operator/internal/logger"
 	"github.com/quero-edu/loki-rule-operator/pkg/controllers"
+
+	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	logCtrl "sigs.k8s.io/controller-runtime/pkg/log"
+	metricsServer "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 var (
@@ -54,6 +59,7 @@ func main() {
 	}
 
 	var log = logger.NewLogger("all", logErrorCallback)
+	logCtrl.SetLogger(logr.New(logCtrl.NullLogSink{}))
 
 	var metricsAddr string
 	var probeAddr string
@@ -135,10 +141,18 @@ func main() {
 
 	flag.Parse()
 
+	metricsServerOpts := metricsServer.Options{
+		BindAddress: metricsAddr,
+	}
+
+	webhookServer := webhook.NewServer(webhook.Options{
+		Port: 9443,
+	})
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                        scheme,
-		MetricsBindAddress:            metricsAddr,
-		Port:                          9443,
+		Metrics:                       metricsServerOpts,
+		WebhookServer:                 webhookServer,
 		HealthProbeBindAddress:        probeAddr,
 		LeaderElection:                enableLeaderElection,
 		LeaderElectionID:              leaderElectionID,

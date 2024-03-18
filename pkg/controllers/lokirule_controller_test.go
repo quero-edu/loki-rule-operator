@@ -39,15 +39,18 @@ const lokiRuleMountPath = "/etc/loki/rules"
 const namespaceName = "default"
 const lokiSTSNamespaceName = "loki"
 
-const lokiRuleConfigMapName = "loki-rule-cfg"
+const lokiRuleConfigMapMutableName = "loki-rule-cfg"
+const lokiRuleConfigMapImmutableName = "loki-rule-cfg-immutable"
 
-var k8sClient client.Client
-var testEnv *envtest.Environment
-
-var httpServer *httptest.Server
-
-var lokiStatefulSet *appsv1.StatefulSet
-var lokiRuleReconcilerInstance *LokiRuleReconciler
+var (
+	k8sClient                       client.Client
+	testEnv                         *envtest.Environment
+	httpServer                      *httptest.Server
+	lokiStatefulSetMutable          *appsv1.StatefulSet
+	lokiStatefulSetImmutable        *appsv1.StatefulSet
+	lokiRuleReconcilerWithUpdate    *LokiRuleReconciler
+	lokiRuleReconcilerWithoutUpdate *LokiRuleReconciler
+)
 
 var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
@@ -64,14 +67,15 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testEnv.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 
-	labels := map[string]string{
-		"app": "loki",
-	}
+	labelsMutable := map[string]string{"app": "loki"}
+	labelsImmutable := map[string]string{"app": "loki-immutable"}
 
 	err = createNamespace(k8sClient, lokiSTSNamespaceName)
 	Expect(err).ToNot(HaveOccurred())
 
-	lokiStatefulSet, err = createStatefulSet(k8sClient, lokiSTSNamespaceName, labels)
+	lokiStatefulSetMutable, err = createStatefulSet(k8sClient, lokiSTSNamespaceName, "loki", labelsMutable)
+	Expect(err).ToNot(HaveOccurred())
+	lokiStatefulSetImmutable, err = createStatefulSet(k8sClient, lokiSTSNamespaceName, "loki-immutable", labelsImmutable)
 	Expect(err).ToNot(HaveOccurred())
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -83,23 +87,34 @@ var _ = BeforeSuite(func() {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	selector := &metav1.LabelSelector{
-		MatchLabels: labels,
-	}
-
-	lokiRuleReconcilerInstance = &LokiRuleReconciler{
+	lokiRuleReconcilerWithUpdate = &LokiRuleReconciler{
 		Client:                k8sClient,
 		Scheme:                testEnv.Scheme,
 		Logger:                logger.NewNopLogger(),
 		LokiRulesPath:         lokiRuleMountPath,
-		LokiLabelSelector:     selector,
+		LokiLabelSelector:     &metav1.LabelSelector{MatchLabels: labelsMutable},
 		LokiNamespace:         lokiSTSNamespaceName,
-		LokiRuleConfigMapName: lokiRuleConfigMapName,
+		LokiRuleConfigMapName: lokiRuleConfigMapMutableName,
 		LokiURL:               httpServer.URL,
 		LokiClient:            &http.Client{},
+		UpdateLoki:            true,
+	}
+	lokiRuleReconcilerWithoutUpdate = &LokiRuleReconciler{
+		Client:                k8sClient,
+		Scheme:                testEnv.Scheme,
+		Logger:                logger.NewNopLogger(),
+		LokiRulesPath:         lokiRuleMountPath,
+		LokiLabelSelector:     &metav1.LabelSelector{MatchLabels: labelsImmutable},
+		LokiNamespace:         lokiSTSNamespaceName,
+		LokiRuleConfigMapName: lokiRuleConfigMapImmutableName,
+		LokiURL:               httpServer.URL,
+		LokiClient:            &http.Client{},
+		UpdateLoki:            false,
 	}
 
-	err = (lokiRuleReconcilerInstance).SetupWithManager(mgr)
+	err = (lokiRuleReconcilerWithUpdate).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred())
+	err = (lokiRuleReconcilerWithoutUpdate).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {
@@ -121,7 +136,6 @@ var _ = Describe("LokiRuleController", func() {
 	Describe("Reconcile", func() {
 		Context("When a LokiRule is created", func() {
 			var lokiRule *querocomv1alpha1.LokiRule
-			configMapName := "loki-rule-cfg"
 
 			BeforeEach(func() {
 				lokiRule = &querocomv1alpha1.LokiRule{
@@ -161,60 +175,61 @@ var _ = Describe("LokiRuleController", func() {
 			})
 
 			It("Should create the configMap", func() {
-				configMap := &corev1.ConfigMap{}
+				for _, cmName := range []string{lokiRuleConfigMapMutableName, lokiRuleConfigMapImmutableName} {
+					Eventually(func() bool {
+						configMap := &corev1.ConfigMap{}
+						err := k8sClient.Get(context.TODO(), client.ObjectKey{
+							Name:      cmName,
+							Namespace: lokiSTSNamespaceName,
+						}, configMap)
+						if err != nil {
+							GinkgoWriter.Printf("Error getting configMap: %v\n", err)
+							return false
+						}
 
-				Eventually(func() bool {
-					err := k8sClient.Get(context.TODO(), client.ObjectKey{
-						Name:      configMapName,
-						Namespace: lokiSTSNamespaceName,
-					}, configMap)
-					if err != nil {
-						GinkgoWriter.Printf("Error getting configMap: %v\n", err)
-						return false
-					}
-
-					expectedCfgMapData := map[string]interface{}{
-						"groups": []interface{}{
-							map[string]interface{}{
-								"name": "test_group",
-								"rules": []interface{}{
-									map[string]interface{}{
-										"record": "test_record",
-										"expr":   "test_expr",
+						expectedCfgMapData := map[string]interface{}{
+							"groups": []interface{}{
+								map[string]interface{}{
+									"name": "test_group",
+									"rules": []interface{}{
+										map[string]interface{}{
+											"record": "test_record",
+											"expr":   "test_expr",
+										},
 									},
 								},
 							},
-						},
-					}
+						}
 
-					unmarshaledCfgMapData := map[string]interface{}{}
-					err = yaml.Unmarshal([]byte(configMap.Data["default-test-lokirule.yaml"]), &unmarshaledCfgMapData)
-					if err != nil {
-						GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
-						return false
-					}
+						unmarshaledCfgMapData := map[string]interface{}{}
+						err = yaml.Unmarshal([]byte(configMap.Data["default-test-lokirule.yaml"]), &unmarshaledCfgMapData)
+						if err != nil {
+							GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
+							return false
+						}
 
-					if !reflect.DeepEqual(expectedCfgMapData, unmarshaledCfgMapData) {
-						GinkgoWriter.Printf(
-							"ConfigMap data does not match, Got: %v\nExpected: %v\n",
-							unmarshaledCfgMapData,
-							expectedCfgMapData,
-						)
+						if !reflect.DeepEqual(expectedCfgMapData, unmarshaledCfgMapData) {
+							GinkgoWriter.Printf(
+								"ConfigMap data does not match, Got: %v\nExpected: %v\n",
+								unmarshaledCfgMapData,
+								expectedCfgMapData,
+							)
 
-						return false
-					}
+							return false
+						}
 
-					return true
-				}, timeout, interval).Should(BeTrue())
+						return true
+					}, timeout, interval).Should(BeTrue())
+				}
 			})
 
-			It("Should mount the configMap and annotate the statefulset", func() {
-				expectedVolumeName := fmt.Sprintf("%s-volume", configMapName)
+			It("Should mount the configMap and annotate the statefulset (mutable)", func() {
+				expectedVolumeName := fmt.Sprintf("%s-volume", lokiRuleConfigMapMutableName)
 				resultStatefulSet := &appsv1.StatefulSet{}
 
 				Eventually(func() bool {
 					err := k8sClient.Get(context.TODO(), client.ObjectKey{
-						Name:      lokiStatefulSet.Name,
+						Name:      lokiStatefulSetMutable.Name,
 						Namespace: lokiSTSNamespaceName,
 					}, resultStatefulSet)
 
@@ -248,14 +263,15 @@ var _ = Describe("LokiRuleController", func() {
 						return false
 					}
 
-					if resultStatefulSet.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.Name != configMapName {
+					if resultStatefulSet.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.Name !=
+						lokiRuleConfigMapMutableName {
 						GinkgoWriter.Println("ConfigMap name is not test-lokirule-config")
 						return false
 					}
 
 					// generated from lokirule.data
 					const expectedAnnotationHash = "3866fad9d3a968d9a28648397af7c83d57b93e629652b1962631eae56790f75a"
-					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", configMapName)
+					expectedAnnotationName := fmt.Sprintf("checksum/config-%s", lokiRuleConfigMapMutableName)
 
 					if resultStatefulSet.Spec.Template.Annotations == nil {
 						GinkgoWriter.Println("Annotations is not set")
@@ -266,6 +282,39 @@ var _ = Describe("LokiRuleController", func() {
 							map[string]string{expectedAnnotationName: expectedAnnotationHash},
 							resultStatefulSet.Spec.Template.Annotations,
 						)
+						return false
+					}
+
+					return true
+				}, timeout, interval).Should(BeTrue())
+			})
+
+			It("Should not mount the configMap and annotate the statefulset (immutable)", func() {
+				resultStatefulSet := &appsv1.StatefulSet{}
+
+				Eventually(func() bool {
+					err := k8sClient.Get(context.TODO(), client.ObjectKey{
+						Name:      lokiStatefulSetImmutable.Name,
+						Namespace: lokiSTSNamespaceName,
+					}, resultStatefulSet)
+
+					if err != nil {
+						GinkgoWriter.Printf("Error getting statefulset: %v\n", err)
+						return false
+					}
+
+					if len(resultStatefulSet.Spec.Template.Spec.Volumes) != 0 {
+						GinkgoWriter.Println("Volumes length is not 0")
+						return false
+					}
+
+					if len(resultStatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts) != 0 {
+						GinkgoWriter.Println("VolumeMounts length is not 0")
+						return false
+					}
+
+					if resultStatefulSet.Spec.Template.Annotations != nil {
+						GinkgoWriter.Println("Annotations is set")
 						return false
 					}
 
@@ -313,92 +362,94 @@ var _ = Describe("LokiRuleController", func() {
 
 				It("Should add both to the cfg map", func() {
 					configMap := &corev1.ConfigMap{}
-					Eventually(func() bool {
-						err := k8sClient.Get(context.TODO(), client.ObjectKey{
-							Name:      lokiRuleConfigMapName,
-							Namespace: lokiSTSNamespaceName,
-						}, configMap)
+					for _, cmName := range []string{lokiRuleConfigMapMutableName, lokiRuleConfigMapImmutableName} {
+						Eventually(func() bool {
+							err := k8sClient.Get(context.TODO(), client.ObjectKey{
+								Name:      cmName,
+								Namespace: lokiSTSNamespaceName,
+							}, configMap)
 
-						if err != nil {
-							GinkgoWriter.Printf("Error getting configMap: %v\n", err)
-							return false
-						}
+							if err != nil {
+								GinkgoWriter.Printf("Error getting configMap: %v\n", err)
+								return false
+							}
 
-						if len(configMap.Data) != 2 {
-							GinkgoWriter.Printf("ConfigMap data length is not 2, got %v\n", len(configMap.Data))
-						}
+							if len(configMap.Data) != 2 {
+								GinkgoWriter.Printf("ConfigMap data length is not 2, got %v\n", len(configMap.Data))
+							}
 
-						lokiRuleOneExpectedCfgMapData := map[string]interface{}{
-							"groups": []interface{}{
-								map[string]interface{}{
-									"name": "test_group",
-									"rules": []interface{}{
-										map[string]interface{}{
-											"record": "test_record",
-											"expr":   "test_expr",
+							lokiRuleOneExpectedCfgMapData := map[string]interface{}{
+								"groups": []interface{}{
+									map[string]interface{}{
+										"name": "test_group",
+										"rules": []interface{}{
+											map[string]interface{}{
+												"record": "test_record",
+												"expr":   "test_expr",
+											},
 										},
 									},
 								},
-							},
-						}
+							}
 
-						lokiRuleOneUnmarshaledCfgMapData := map[string]interface{}{}
-						err = yaml.Unmarshal(
-							[]byte(configMap.Data["default-test-lokirule.yaml"]),
-							&lokiRuleOneUnmarshaledCfgMapData,
-						)
-						if err != nil {
-							GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
-							return false
-						}
-
-						if !reflect.DeepEqual(lokiRuleOneExpectedCfgMapData, lokiRuleOneUnmarshaledCfgMapData) {
-							GinkgoWriter.Printf(
-								"ConfigMap data from rule 1 does not match, Got: %v\nExpected: %v\n",
-								lokiRuleOneUnmarshaledCfgMapData,
-								lokiRuleOneExpectedCfgMapData,
+							lokiRuleOneUnmarshaledCfgMapData := map[string]interface{}{}
+							err = yaml.Unmarshal(
+								[]byte(configMap.Data["default-test-lokirule.yaml"]),
+								&lokiRuleOneUnmarshaledCfgMapData,
 							)
+							if err != nil {
+								GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
+								return false
+							}
 
-							return false
-						}
+							if !reflect.DeepEqual(lokiRuleOneExpectedCfgMapData, lokiRuleOneUnmarshaledCfgMapData) {
+								GinkgoWriter.Printf(
+									"ConfigMap data from rule 1 does not match, Got: %v\nExpected: %v\n",
+									lokiRuleOneUnmarshaledCfgMapData,
+									lokiRuleOneExpectedCfgMapData,
+								)
 
-						lokiRuleTwoExpectedCfgMapData := map[string]interface{}{
-							"groups": []interface{}{
-								map[string]interface{}{
-									"name": "default-test-lokirule-2",
-									"rules": []interface{}{
-										map[string]interface{}{
-											"record": "test_record2",
-											"expr":   "test_expr2",
+								return false
+							}
+
+							lokiRuleTwoExpectedCfgMapData := map[string]interface{}{
+								"groups": []interface{}{
+									map[string]interface{}{
+										"name": "default-test-lokirule-2",
+										"rules": []interface{}{
+											map[string]interface{}{
+												"record": "test_record2",
+												"expr":   "test_expr2",
+											},
 										},
 									},
 								},
-							},
-						}
+							}
 
-						lokiRuleTwoUnmarshaledCfgMapData := map[string]interface{}{}
+							lokiRuleTwoUnmarshaledCfgMapData := map[string]interface{}{}
 
-						err = yaml.Unmarshal(
-							[]byte(configMap.Data["default-test-lokirule-2.yaml"]),
-							&lokiRuleTwoUnmarshaledCfgMapData,
-						)
-						if err != nil {
-							GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
-							return false
-						}
-
-						if !reflect.DeepEqual(lokiRuleTwoExpectedCfgMapData, lokiRuleTwoUnmarshaledCfgMapData) {
-							GinkgoWriter.Printf(
-								"ConfigMap data from rule 2 does not match, Got: %v\nExpected: %v\n",
-								lokiRuleTwoUnmarshaledCfgMapData,
-								lokiRuleTwoExpectedCfgMapData,
+							err = yaml.Unmarshal(
+								[]byte(configMap.Data["default-test-lokirule-2.yaml"]),
+								&lokiRuleTwoUnmarshaledCfgMapData,
 							)
+							if err != nil {
+								GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
+								return false
+							}
 
-							return false
-						}
+							if !reflect.DeepEqual(lokiRuleTwoExpectedCfgMapData, lokiRuleTwoUnmarshaledCfgMapData) {
+								GinkgoWriter.Printf(
+									"ConfigMap data from rule 2 does not match, Got: %v\nExpected: %v\n",
+									lokiRuleTwoUnmarshaledCfgMapData,
+									lokiRuleTwoExpectedCfgMapData,
+								)
 
-						return true
-					}, timeout, interval).Should(BeTrue())
+								return false
+							}
+
+							return true
+						}, timeout, interval).Should(BeTrue())
+					}
 				})
 			})
 		})
@@ -468,49 +519,51 @@ var _ = Describe("LokiRuleController", func() {
 			})
 
 			It("Should remove the data from the configMap", func() {
-				configMap := &corev1.ConfigMap{}
+				for _, cmName := range []string{lokiRuleConfigMapMutableName, lokiRuleConfigMapImmutableName} {
+					configMap := &corev1.ConfigMap{}
 
-				Eventually(func() bool {
-					err := k8sClient.Get(context.TODO(), client.ObjectKey{
-						Name:      lokiRuleConfigMapName,
-						Namespace: lokiSTSNamespaceName,
-					}, configMap)
-					if err != nil {
-						GinkgoWriter.Printf("Error getting configMap, %v\n", err)
-						return false
-					}
+					Eventually(func() bool {
+						err := k8sClient.Get(context.TODO(), client.ObjectKey{
+							Name:      cmName,
+							Namespace: lokiSTSNamespaceName,
+						}, configMap)
+						if err != nil {
+							GinkgoWriter.Printf("Error getting configMap, %v\n", err)
+							return false
+						}
 
-					expectedCfgMapData := map[string]interface{}{
-						"groups": []interface{}{
-							map[string]interface{}{
-								"name": "test_group2",
-								"rules": []interface{}{
-									map[string]interface{}{
-										"record": "test_record2",
-										"expr":   "test_expr2",
+						expectedCfgMapData := map[string]interface{}{
+							"groups": []interface{}{
+								map[string]interface{}{
+									"name": "test_group2",
+									"rules": []interface{}{
+										map[string]interface{}{
+											"record": "test_record2",
+											"expr":   "test_expr2",
+										},
 									},
 								},
 							},
-						},
-					}
+						}
 
-					unmarshaledCfgMapData := map[string]interface{}{}
-					err = yaml.Unmarshal([]byte(configMap.Data["default-test2-lokirule.yaml"]), &unmarshaledCfgMapData)
-					if err != nil {
-						GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
-						return false
-					}
+						unmarshaledCfgMapData := map[string]interface{}{}
+						err = yaml.Unmarshal([]byte(configMap.Data["default-test2-lokirule.yaml"]), &unmarshaledCfgMapData)
+						if err != nil {
+							GinkgoWriter.Printf("Error unmarshaling configMap data, %v", err)
+							return false
+						}
 
-					if !reflect.DeepEqual(expectedCfgMapData, unmarshaledCfgMapData) {
-						GinkgoWriter.Printf(
-							"ConfigMap data does not match, Got: %v\nExpected: %v\n",
-							unmarshaledCfgMapData,
-							expectedCfgMapData,
-						)
-						return false
-					}
-					return true
-				}, timeout, interval).Should(BeTrue())
+						if !reflect.DeepEqual(expectedCfgMapData, unmarshaledCfgMapData) {
+							GinkgoWriter.Printf(
+								"ConfigMap data does not match, Got: %v\nExpected: %v\n",
+								unmarshaledCfgMapData,
+								expectedCfgMapData,
+							)
+							return false
+						}
+						return true
+					}, timeout, interval).Should(BeTrue())
+				}
 			})
 		})
 
@@ -544,54 +597,57 @@ var _ = Describe("LokiRuleController", func() {
 				Expect(err).To(BeNil())
 			})
 			It("Should update the data in the configMap", func() {
-				configMap := &corev1.ConfigMap{}
-				Eventually(func() bool {
-					err := k8sClient.Get(context.TODO(), client.ObjectKey{
-						Name:      lokiRuleConfigMapName,
-						Namespace: lokiSTSNamespaceName,
-					}, configMap)
-					if err != nil {
-						GinkgoWriter.Printf("Error getting configMap, %v\n", err)
-						return false
-					}
+				for _, cmName := range []string{lokiRuleConfigMapMutableName, lokiRuleConfigMapImmutableName} {
+					configMap := &corev1.ConfigMap{}
+					Eventually(func() bool {
+						err := k8sClient.Get(context.TODO(), client.ObjectKey{
+							Name:      cmName,
+							Namespace: lokiSTSNamespaceName,
+						}, configMap)
+						if err != nil {
+							GinkgoWriter.Printf("Error getting configMap, %v\n", err)
+							return false
+						}
 
-					unmarshaledRuleFile := map[string][]map[string]interface{}{}
-					ruleFileByteData := []byte(configMap.Data["default-test-lokirule-update.yaml"])
-					err = yaml.Unmarshal(ruleFileByteData, &unmarshaledRuleFile)
-					if err != nil {
-						GinkgoWriter.Printf("Error unmarshaling rules, %v\n%v", err, string(ruleFileByteData))
-						return false
-					}
+						unmarshaledRuleFile := map[string][]map[string]interface{}{}
+						ruleFileByteData := []byte(configMap.Data["default-test-lokirule-update.yaml"])
+						err = yaml.Unmarshal(ruleFileByteData, &unmarshaledRuleFile)
+						if err != nil {
+							GinkgoWriter.Printf("Error unmarshaling rules, %v\n%v", err, string(ruleFileByteData))
+							return false
+						}
 
-					if len(unmarshaledRuleFile) != 1 {
-						GinkgoWriter.Printf(
-							"RuleFile length does not match, Got: %v - Expected: %v\n",
-							len(unmarshaledRuleFile),
-							1,
-						)
-						return false
-					}
+						if len(unmarshaledRuleFile) != 1 {
+							GinkgoWriter.Printf(
+								"RuleFile length does not match, Got: %v - Expected: %v\n",
+								len(unmarshaledRuleFile),
+								1,
+							)
+							return false
+						}
 
-					unmarshaledRules := unmarshaledRuleFile["groups"][0]["rules"].([]interface{})
+						unmarshaledRules := unmarshaledRuleFile["groups"][0]["rules"].([]interface{})
 
-					if len(unmarshaledRules) != 1 {
-						GinkgoWriter.Printf("Rule length does not match, Got: %v - Expected: %v\n", len(unmarshaledRules), 1)
-						return false
-					}
+						if len(unmarshaledRules) != 1 {
+							GinkgoWriter.Printf("Rule length does not match, Got: %v - Expected: %v\n",
+								len(unmarshaledRules), 1)
+							return false
+						}
 
-					ruleExpression := unmarshaledRules[0].(map[string]interface{})["expr"].(string)
-					if ruleExpression != "test_expr_update2" {
-						GinkgoWriter.Printf(
-							"Rule expr does not match (rule: %v), Got: %s\nExpected: %s\n",
-							unmarshaledRules,
-							ruleExpression,
-							"test_expr_update2",
-						)
-						return false
-					}
+						ruleExpression := unmarshaledRules[0].(map[string]interface{})["expr"].(string)
+						if ruleExpression != "test_expr_update2" {
+							GinkgoWriter.Printf(
+								"Rule expr does not match (rule: %v), Got: %s\nExpected: %s\n",
+								unmarshaledRules,
+								ruleExpression,
+								"test_expr_update2",
+							)
+							return false
+						}
 
-					return true
-				}, timeout, interval).Should(BeTrue())
+						return true
+					}, timeout, interval).Should(BeTrue())
+				}
 			})
 		})
 	})
@@ -607,10 +663,15 @@ func createNamespace(k8sClient client.Client, namespace string) error {
 	return k8sClient.Create(context.TODO(), ns)
 }
 
-func createStatefulSet(k8sClient client.Client, namespace string, labels map[string]string) (*appsv1.StatefulSet, error) {
+func createStatefulSet(
+	k8sClient client.Client,
+	namespace string,
+	name string,
+	labels map[string]string,
+) (*appsv1.StatefulSet, error) {
 	lokiStatefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "loki",
+			Name:      name,
 			Namespace: namespace,
 			Labels:    labels,
 		},

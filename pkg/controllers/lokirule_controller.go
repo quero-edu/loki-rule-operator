@@ -45,6 +45,7 @@ type LokiRuleReconciler struct {
 	LokiNamespace         string
 	LokiRuleConfigMapName string
 	LokiURL               string
+	UpdateLoki            bool
 }
 
 func (r *LokiRuleReconciler) newRuleHandler(
@@ -163,16 +164,6 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 				deletedInstance.Name,
 			)
 
-			lokiStatefulset, err := getLokiStatefulSet(
-				r.Client,
-				r.LokiLabelSelector,
-				r.LokiNamespace,
-				r.Logger,
-			)
-			if err != nil {
-				r.Logger.Error(err, "Failed to get Loki statefulSet")
-			}
-
 			configMapFileToRemove, err := lokirule.GenerateRuleConfigMapFile(deletedInstance)
 			if err != nil {
 				r.Logger.Error(err, "Failed to generate rule groups")
@@ -189,17 +180,29 @@ func handleByEventType(r *LokiRuleReconciler) predicate.Predicate {
 				r.Logger.Error(err, "Failed to ensure configMap exists")
 			}
 
-			err = k8sutils.MountConfigMap(
-				r.Client,
-				r.LokiNamespace,
-				r.LokiRuleConfigMapName,
-				r.LokiRulesPath,
-				lokiStatefulset,
-				options,
-			)
+			if r.UpdateLoki {
+				lokiStatefulset, err := getLokiStatefulSet(
+					r.Client,
+					r.LokiLabelSelector,
+					r.LokiNamespace,
+					r.Logger,
+				)
+				if err != nil {
+					r.Logger.Error(err, "Failed to get Loki statefulSet")
+				}
 
-			if err != nil {
-				r.Logger.Error(err, "ConfigMap not attached")
+				err = k8sutils.MountConfigMap(
+					r.Client,
+					r.LokiNamespace,
+					r.LokiRuleConfigMapName,
+					r.LokiRulesPath,
+					lokiStatefulset,
+					options,
+				)
+
+				if err != nil {
+					r.Logger.Error(err, "ConfigMap not attached")
+				}
 			}
 
 			r.Logger.Info("LokiRule Reconciled")
@@ -238,28 +241,30 @@ func (r *LokiRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		r.Logger.Error(err, "Failed to handle LokiRule")
 	}
 
-	lokiStatefulset, err := getLokiStatefulSet(
-		r.Client,
-		r.LokiLabelSelector,
-		r.LokiNamespace,
-		r.Logger,
-	)
-	if err != nil {
-		r.Logger.Error(err, "Failed to get loki statefulSet")
-		return reconcile.Result{}, err
-	}
+	if r.UpdateLoki {
+		lokiStatefulset, err := getLokiStatefulSet(
+			r.Client,
+			r.LokiLabelSelector,
+			r.LokiNamespace,
+			r.Logger,
+		)
+		if err != nil {
+			r.Logger.Error(err, "Failed to get loki statefulSet")
+			return reconcile.Result{}, err
+		}
 
-	err = k8sutils.MountConfigMap(
-		r.Client,
-		r.LokiNamespace,
-		r.LokiRuleConfigMapName,
-		r.LokiRulesPath,
-		lokiStatefulset,
-		options,
-	)
-	if err != nil {
-		r.Logger.Error(err, "ConfigMap not attached")
-		return reconcile.Result{}, err
+		err = k8sutils.MountConfigMap(
+			r.Client,
+			r.LokiNamespace,
+			r.LokiRuleConfigMapName,
+			r.LokiRulesPath,
+			lokiStatefulset,
+			options,
+		)
+		if err != nil {
+			r.Logger.Error(err, "ConfigMap not attached")
+			return reconcile.Result{}, err
+		}
 	}
 
 	r.Logger.Info("LokiRule Reconciled")

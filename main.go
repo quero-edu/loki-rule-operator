@@ -72,6 +72,7 @@ func main() {
 	var lokiRuleMountPath string
 	var lokiURL string
 	var lokiHeaders flags.ArrayFlags
+	var onlyReconcileRules bool
 
 	flag.BoolVar(
 		&enableLeaderElection,
@@ -138,6 +139,14 @@ func main() {
 		"loki-header",
 		"Extra header that will be sent to Loki. Format KEY=VALUE. May be repeated.",
 	)
+	flag.BoolVar(
+		&onlyReconcileRules,
+		"only-reconcile-rules",
+		false,
+		"When enabled the operator will only reconcile LokiRule's into the ConfigMap. "+
+			"It will skip updating the DaemonSet volume, volumeMounts and annotation hash, "+
+			"efficiently avoiding restarts of Loki.",
+	)
 
 	flag.Parse()
 
@@ -184,6 +193,7 @@ func main() {
 		LokiNamespace:         lokiNamespace,
 		LokiRuleConfigMapName: "loki-rule-cfg",
 		LokiURL:               lokiURL,
+		UpdateLoki:            !onlyReconcileRules,
 	}).SetupWithManager(mgr); err != nil {
 		log.Error(err, "unable to create controller", "controller", "LokiRule")
 		os.Exit(1)
@@ -198,7 +208,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Info("starting manager")
+	log.Info("starting manager", "onlyReconcileRules", onlyReconcileRules)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		log.Error(err, "problem running manager")
 		os.Exit(1)

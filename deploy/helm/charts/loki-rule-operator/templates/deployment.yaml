@@ -37,7 +37,7 @@ spec:
             - -loki-rule-mount-path={{ .Values.lokiRuleOperator.lokiRuleMountPath }}
             - -loki-url={{ .Values.lokiRuleOperator.lokiURL }}
             {{- range .Values.lokiRuleOperator.lokiHeaders }}
-            - -loki-header="{{ . }}"
+            - -loki-header={{ . }}
             {{- end }}
             {{- if .Values.lokiRuleOperator.logLevel }}
             - -log-level={{ .Values.lokiRuleOperator.logLevel }}
@@ -53,6 +53,7 @@ spec:
             {{- if .Values.lokiRuleOperator.leaderElection.id }}
             - -leader-election-id={{ .Values.lokiRuleOperator.leaderElection.id }}
             {{- end }}
+            - -only-reconcile-rules={{ .Values.lokiRuleOperator.onlyReconcileRules | default false }}
           livenessProbe:
             httpGet:
               path: /healthz

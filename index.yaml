@@ -3,6 +3,16 @@ entries:
   loki-rule-operator:
   - apiVersion: v2
     appVersion: 0.6.2
+    created: "2024-03-18T14:30:08.388341503Z"
+    description: A Helm chart for Kubernetes
+    digest: 734b4aa5d3f66bc1f6f6dc79f02e66536018b368ebfb549707089d41195db230
+    name: loki-rule-operator
+    type: application
+    urls:
+    - https://github.com/quero-edu/loki-rule-operator/releases/download/loki-rule-operator-0.7.5/loki-rule-operator-0.7.5.tgz
+    version: 0.7.5
+  - apiVersion: v2
+    appVersion: 0.6.2
     created: "2024-03-11T13:08:46.913614608Z"
     description: A Helm chart for Kubernetes
     digest: 20a0f5d03ffa86805fb340daa4e6454fb8c897e952579a838d16790065556501
@@ -141,4 +151,4 @@ entries:
     urls:
     - https://github.com/quero-edu/loki-rule-operator/releases/download/loki-rule-operator-0.1.0/loki-rule-operator-0.1.0.tgz
     version: 0.1.0
-generated: "2024-03-11T13:08:46.913763356Z"
+generated: "2024-03-18T14:30:08.38845285Z"

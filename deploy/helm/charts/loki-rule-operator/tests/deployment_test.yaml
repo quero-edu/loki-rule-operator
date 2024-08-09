@@ -217,14 +217,3 @@ tests:
   - equal:
       path: spec.template.spec.serviceAccountName
       value: my-service-account
-- it: should set commonLabels
-  values:
-  - ./minimal_values.yaml
-  set:
-    release:
-      name: my-release
-    commonLabels:
-      app.kubernetes.io/name: my-app
-      app.kubernetes.io/instance: my-instance
-  hasDocuments:
-    count: 1

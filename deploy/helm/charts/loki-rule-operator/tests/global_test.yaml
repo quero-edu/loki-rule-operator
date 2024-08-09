@@ -1,0 +1,23 @@
+suite: Resources contains commonLabels
+templates:
+- deployment.yaml
+- serviceaccount.yaml
+- crd/quero.com_lokirules.yaml
+- rbac/cluster_role.yaml
+- rbac/leader_election_role.yaml
+- rbac/role_bindings.yaml
+- rbac/lokirule_viewer_role.yaml
+- rbac/lokirule_editor_role.yaml
+tests:
+- it: should set commonLabels in all resources
+  values:
+  - ./minimal_values.yaml
+  set:
+    release:
+      name: my-release
+    commonLabels:
+      global.label/name: my-global-label
+  asserts:
+  - equal:
+      path: metadata.labels["global.label/name"]
+      value: "my-global-label"

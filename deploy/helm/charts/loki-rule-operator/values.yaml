@@ -13,6 +13,8 @@ serviceAccount:
 
 podAnnotations: {}
 
+commonLabels: {}
+
 resources:
   limits:
     cpu: 200m

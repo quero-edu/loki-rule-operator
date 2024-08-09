@@ -13,6 +13,7 @@ serviceAccount:
 
 podAnnotations: {}
 
+# -- Add additional label to all resources
 commonLabels: {}
 
 resources:

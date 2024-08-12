@@ -13,6 +13,9 @@ serviceAccount:
 
 podAnnotations: {}
 
+# -- Add additional labels that will be append in all resources. 
+commonLabels: {}
+
 resources:
   limits:
     cpu: 200m

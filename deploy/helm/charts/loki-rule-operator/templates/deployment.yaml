@@ -19,6 +19,9 @@ spec:
       {{- end }}
       labels:
         {{- include "loki-rule-operator.selectorLabels" . | nindent 8 }}
+        {{- with .Values.commonLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
